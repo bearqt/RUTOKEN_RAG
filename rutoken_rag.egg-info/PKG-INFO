@@ -1,0 +1,118 @@
+Metadata-Version: 2.4
+Name: rutoken-rag
+Version: 0.1.0
+Summary: Hybrid RAG for Rutoken developer portal documents
+Requires-Python: <3.14,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi<1.0.0,>=0.122.0
+Requires-Dist: gigachat<1.0.0,>=0.2.0
+Requires-Dist: numpy<3.0.0,>=2.2.3
+Requires-Dist: openrouter<1.0.0,>=0.7.11
+Requires-Dist: qdrant-client<2.0.0,>=1.15.1
+Requires-Dist: rank-bm25<1.0.0,>=0.2.2
+Requires-Dist: sentence-transformers<6.0.0,>=5.1.2
+Requires-Dist: uvicorn<1.0.0,>=0.35.0
+
+# Rutoken RAG
+
+Python RAG-проект для базы знаний `dev.rutoken.ru` с гибридным поиском:
+
+- dense retrieval через embedding-модель GigaChat;
+- sparse retrieval через BM25 для точных совпадений по `CKR_*`, `CKA_*`, `C_*`, `rtPKCS11*`;
+- rerank через `BAAI/bge-reranker-v2-m3`;
+- generation и query rewriting через OpenRouter.
+
+## Что лежит в проекте
+
+- `app/services/parsing.py` — очистка markdown FireCrawler/Confluence и chunking.
+- `app/services/enrichment.py` — metadata enrichment: продукты, ОС, интерфейсы, символы API, язык.
+- `app/services/ingestion.py` — ingest из `scrape_result` в `data/` и Qdrant.
+- `app/services/search.py` — hybrid search + RRF + rerank.
+- `app/services/query_analysis.py` — переписывание запроса и извлечение фильтров.
+- `app/services/generation.py` — финальный ответ со строгими ограничениями и цитированием.
+- `app/main.py` — FastAPI API.
+
+## Chunking strategy
+
+Данные из `scrape_result` имеют устойчивый Confluence-формат:
+
+- первая строка содержит title + URL источника;
+- дальше идет служебный блок `Created by ... last modified ...`;
+- затем секции, таблицы, изображения, fenced code blocks;
+- в конце иногда есть `Comments`, которые вырезаются как шум.
+
+Стратегия чанкинга:
+
+- prose режется по секциям и абзацам с overlap;
+- code blocks сохраняются как отдельные chunks;
+- markdown tables режутся отдельно;
+- большие сравнительные таблицы режутся окнами по строкам, чтобы не терять точные признаки по моделям токенов.
+
+## Настройка
+
+1. Скопируй `.env.example` в `.env`.
+2. Заполни `GIGACHAT_AUTH_KEY`.
+3. Заполни `OPENROUTER_API_KEY`.
+4. Укажи `OPENROUTER_MODEL`, например `openai/gpt-4o-mini` или любой другой model id из OpenRouter.
+
+`GIGACHAT_AUTH_KEY` — это base64-ключ для OAuth, который используется при вызове `POST /api/v2/oauth`.
+
+## Локальный запуск
+
+```bash
+py -3.13 -m venv .venv
+. .venv/bin/activate
+pip install -e .
+python scripts/ingest.py
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+## Docker Compose
+
+Поднять API и Qdrant:
+
+```bash
+docker compose up --build
+```
+
+Одноразово построить индекс:
+
+```bash
+docker compose run --rm --profile tools ingest
+```
+
+После индексации API доступно на `http://localhost:8000`.
+
+## API
+
+### `GET /health`
+
+Проверка состояния API и наличия индекса.
+
+### `POST /ingest`
+
+Запускает индексацию из `scrape_result`.
+
+Пример:
+
+```json
+{}
+```
+
+### `POST /query`
+
+Пример тела:
+
+```json
+{
+  "question": "Как подписать файл на Python с Рутокен ЭЦП через PKCS#11?"
+}
+```
+
+Ответ содержит:
+
+- исходный и переписанный запрос;
+- извлеченные фильтры;
+- ответ;
+- список цитат;
+- top chunks после rerank.

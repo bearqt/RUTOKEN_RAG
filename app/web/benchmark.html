@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rutoken RAG Benchmark</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3efe6;
+      --panel: #fffaf2;
+      --panel-strong: #f7eedc;
+      --text: #1e1c18;
+      --muted: #675f51;
+      --accent: #8e3b12;
+      --accent-soft: #efddcc;
+      --success: #1b6e39;
+      --danger: #982b2b;
+      --border: #d8c8b0;
+      --shadow: 0 12px 30px rgba(90, 57, 30, 0.08);
+      font-family: "Segoe UI", "Noto Sans", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(214, 161, 113, 0.25), transparent 28%),
+        linear-gradient(180deg, #f8f3ea 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    .shell {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 24px auto 40px;
+    }
+
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 28px;
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 1.5fr 1fr;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 5vw, 42px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 72ch;
+      line-height: 1.55;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      transition: transform 120ms ease, opacity 120ms ease;
+    }
+
+    button.secondary {
+      background: var(--panel-strong);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .status {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .grid {
+      margin-top: 20px;
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 360px 1fr;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    .summary-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 14px;
+    }
+
+    .metric {
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .metric-table, .cases-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .metric-table td, .metric-table th,
+    .cases-table td, .cases-table th {
+      padding: 10px 8px;
+      border-bottom: 1px solid rgba(216, 200, 176, 0.7);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .cases-table tr[data-selected="true"] {
+      background: rgba(142, 59, 18, 0.08);
+    }
+
+    .cases-table tbody tr {
+      cursor: pointer;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    .badge.pass { color: var(--success); }
+    .badge.fail { color: var(--danger); }
+
+    .detail-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 16px;
+    }
+
+    .detail-card {
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 140px;
+    }
+
+    .detail-card h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 18px 0 8px;
+    }
+
+    @media (max-width: 1100px) {
+      .hero, .grid, .detail-grid {
+        grid-template-columns: 1fr;
+      }
+      .hero-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div>
+        <h1>Rutoken RAG Benchmark</h1>
+        <p>
+          Deterministic evaluation для текущего RAG: вопросы, ответы, citations и rule-based метрики качества.
+          Benchmark использует тот же pipeline, что и <code>/query</code>, и сохраняет последний прогон в JSON.
+        </p>
+        <div class="status" id="status">Загрузка данных...</div>
+      </div>
+      <div class="hero-actions">
+        <button id="runButton">Запустить benchmark</button>
+        <button id="refreshButton" class="secondary">Обновить</button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <aside class="panel">
+        <h2>Сводка</h2>
+        <div class="summary-grid" id="summaryGrid"></div>
+        <h2 style="margin-top: 22px;">Метрики</h2>
+        <table class="metric-table" id="metricTable"></table>
+        <h2 style="margin-top: 22px;">Dataset</h2>
+        <div id="datasetMeta" class="empty">Нет данных.</div>
+      </aside>
+
+      <section class="panel">
+        <h2>Кейсы</h2>
+        <table class="cases-table" id="casesTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Вопрос</th>
+              <th>Score</th>
+              <th>Status</th>
+              <th>Latency</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="emptyCases" class="empty" hidden>Результаты benchmark еще не созданы.</div>
+
+        <div id="detailBlock" hidden>
+          <h2 style="margin-top: 22px;">Детали кейса</h2>
+          <div class="detail-grid">
+            <div class="detail-card">
+              <h3>Вопрос</h3>
+              <pre id="detailQuestion"></pre>
+            </div>
+            <div class="detail-card">
+              <h3>Rewrite / Filters</h3>
+              <pre id="detailRewrite"></pre>
+            </div>
+            <div class="detail-card" style="grid-column: 1 / -1;">
+              <h3>Ответ</h3>
+              <pre id="detailAnswer"></pre>
+            </div>
+            <div class="detail-card">
+              <h3>Checks</h3>
+              <pre id="detailChecks"></pre>
+            </div>
+            <div class="detail-card">
+              <h3>Diagnostics</h3>
+              <pre id="detailDiagnostics"></pre>
+            </div>
+            <div class="detail-card">
+              <h3>Citations</h3>
+              <pre id="detailCitations"></pre>
+            </div>
+            <div class="detail-card">
+              <h3>Retrieved Chunks</h3>
+              <pre id="detailChunks"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const runButton = document.getElementById("runButton");
+    const refreshButton = document.getElementById("refreshButton");
+    const summaryGrid = document.getElementById("summaryGrid");
+    const metricTable = document.getElementById("metricTable");
+    const datasetMeta = document.getElementById("datasetMeta");
+    const casesBody = document.querySelector("#casesTable tbody");
+    const emptyCases = document.getElementById("emptyCases");
+    const detailBlock = document.getElementById("detailBlock");
+
+    const detailQuestion = document.getElementById("detailQuestion");
+    const detailRewrite = document.getElementById("detailRewrite");
+    const detailAnswer = document.getElementById("detailAnswer");
+    const detailChecks = document.getElementById("detailChecks");
+    const detailDiagnostics = document.getElementById("detailDiagnostics");
+    const detailCitations = document.getElementById("detailCitations");
+    const detailChunks = document.getElementById("detailChunks");
+
+    let currentResults = null;
+    let selectedCaseId = null;
+
+    function formatPercent(value) {
+      if (value === null || value === undefined) return "n/a";
+      return `${(value * 100).toFixed(1)}%`;
+    }
+
+    function formatLatency(value) {
+      if (value === null || value === undefined) return "n/a";
+      return `${Number(value).toFixed(0)} ms`;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function renderSummary(summary) {
+      if (!summary) {
+        summaryGrid.innerHTML = "";
+        metricTable.innerHTML = "";
+        return;
+      }
+
+      summaryGrid.innerHTML = `
+        <div class="metric">
+          <div class="metric-label">Pass rate</div>
+          <div class="metric-value">${formatPercent(summary.pass_rate)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Average score</div>
+          <div class="metric-value">${formatPercent(summary.average_score)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Average latency</div>
+          <div class="metric-value">${formatLatency(summary.average_latency_ms)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">P95 latency</div>
+          <div class="metric-value">${formatLatency(summary.p95_latency_ms)}</div>
+        </div>
+      `;
+
+      const metricRows = Object.entries(summary.metrics || {})
+        .map(([name, metric]) => `
+          <tr>
+            <th>${escapeHtml(name)}</th>
+            <td>${metric.applicable}</td>
+            <td>${metric.passed}</td>
+            <td>${formatPercent(metric.rate)}</td>
+          </tr>
+        `)
+        .join("");
+
+      metricTable.innerHTML = `
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Applicable</th>
+            <th>Passed</th>
+            <th>Rate</th>
+          </tr>
+        </thead>
+        <tbody>${metricRows}</tbody>
+      `;
+    }
+
+    function renderCases(results) {
+      const cases = results?.cases || [];
+      casesBody.innerHTML = "";
+      emptyCases.hidden = cases.length > 0;
+      if (!cases.length) {
+        detailBlock.hidden = true;
+        return;
+      }
+
+      const selected = selectedCaseId && cases.find(item => item.id === selectedCaseId)
+        ? selectedCaseId
+        : cases[0].id;
+      selectedCaseId = selected;
+
+      for (const item of cases) {
+        const row = document.createElement("tr");
+        row.dataset.selected = String(item.id === selectedCaseId);
+        row.innerHTML = `
+          <td>${escapeHtml(item.id)}</td>
+          <td>${escapeHtml(item.question)}</td>
+          <td>${formatPercent(item.score)}</td>
+          <td><span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span></td>
+          <td>${formatLatency(item.actual.latency_ms)}</td>
+        `;
+        row.addEventListener("click", () => {
+          selectedCaseId = item.id;
+          renderCases(results);
+          renderDetail(item);
+        });
+        casesBody.appendChild(row);
+      }
+
+      renderDetail(cases.find(item => item.id === selectedCaseId));
+    }
+
+    function renderDetail(item) {
+      if (!item) {
+        detailBlock.hidden = true;
+        return;
+      }
+      detailBlock.hidden = false;
+      detailQuestion.textContent = item.question;
+      detailRewrite.textContent = JSON.stringify(
+        {
+          rewritten_query: item.actual.rewritten_query,
+          filters: item.actual.filters,
+          tags: item.tags,
+          latency_ms: item.actual.latency_ms,
+        },
+        null,
+        2,
+      );
+      detailAnswer.textContent = item.actual.answer;
+      detailChecks.textContent = JSON.stringify(item.checks, null, 2);
+      detailDiagnostics.textContent = JSON.stringify(item.diagnostics, null, 2);
+      detailCitations.textContent = JSON.stringify(item.actual.citations, null, 2);
+      detailChunks.textContent = JSON.stringify(item.actual.retrieved_chunks, null, 2);
+    }
+
+    async function loadResults() {
+      statusEl.textContent = "Загрузка benchmark results...";
+      const [resultsResponse, casesResponse] = await Promise.all([
+        fetch("/benchmark/results"),
+        fetch("/benchmark/cases"),
+      ]);
+      const resultsPayload = await resultsResponse.json();
+      const casesPayload = await casesResponse.json();
+      currentResults = resultsPayload;
+      datasetMeta.textContent = `Dataset: ${casesPayload.dataset_path} | Кейсов: ${casesPayload.cases.length}`;
+      renderSummary(resultsPayload.summary);
+      renderCases(resultsPayload);
+      statusEl.textContent = resultsPayload.summary
+        ? `Последний прогон: ${resultsPayload.generated_at ?? "n/a"}`
+        : "Результаты еще не созданы. Можно запускать benchmark.";
+    }
+
+    async function runBenchmark() {
+      runButton.disabled = true;
+      statusEl.textContent = "Benchmark выполняется. Это может занять заметное время, если используются внешние модели.";
+      try {
+        const response = await fetch("/benchmark/run", { method: "POST" });
+        if (!response.ok) {
+          const payload = await response.json();
+          throw new Error(payload.detail || "Benchmark run failed");
+        }
+        currentResults = await response.json();
+        renderSummary(currentResults.summary);
+        renderCases(currentResults);
+        statusEl.textContent = `Benchmark завершен: ${currentResults.generated_at}`;
+      } catch (error) {
+        statusEl.textContent = `Ошибка: ${error.message}`;
+      } finally {
+        runButton.disabled = false;
+      }
+    }
+
+    runButton.addEventListener("click", runBenchmark);
+    refreshButton.addEventListener("click", loadResults);
+    loadResults().catch(error => {
+      statusEl.textContent = `Ошибка загрузки: ${error.message}`;
+    });
+  </script>
+</body>
+</html>

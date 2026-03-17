@@ -1,0 +1,9 @@
+.git
+.venv
+.venv313
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+data

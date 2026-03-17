@@ -1,0 +1,46 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  api:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      SCRAPE_DIR: /app/scrape_result
+      DATA_DIR: /app/data
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8000:8000"
+    depends_on:
+      - qdrant
+    volumes:
+      - ./scrape_result:/app/scrape_result:ro
+      - ./data:/app/data
+
+  ingest:
+    build:
+      context: .
+    profiles: ["tools"]
+    env_file:
+      - .env
+    environment:
+      SCRAPE_DIR: /app/scrape_result
+      DATA_DIR: /app/data
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      - qdrant
+    command: ["python", "scripts/ingest.py"]
+    volumes:
+      - ./scrape_result:/app/scrape_result:ro
+      - ./data:/app/data
+
+volumes:
+  qdrant_storage:
+
