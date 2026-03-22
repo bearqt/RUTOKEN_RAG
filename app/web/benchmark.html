@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rutoken RAG Benchmark</title>
+  <title>Rutoken RAG Benchmark Studio</title>
   <style>
     :root {
+      --bg: #f4efe6;
+      --panel: #fffaf3;
+      --panel-2: #f8eee0;
+      --text: #1d1a16;
+      --muted: #6a6256;
+      --accent: #8f3f17;
+      --accent-2: #d26d2d;
+      --border: #dac8b2;
+      --success: #18663a;
+      --danger: #9d2c2c;
+      --shadow: 0 16px 40px rgba(83, 53, 28, 0.08);
       color-scheme: light;
-      --bg: #f3efe6;
-      --panel: #fffaf2;
-      --panel-strong: #f7eedc;
-      --text: #1e1c18;
-      --muted: #675f51;
-      --accent: #8e3b12;
-      --accent-soft: #efddcc;
-      --success: #1b6e39;
-      --danger: #982b2b;
-      --border: #d8c8b0;
-      --shadow: 0 12px 30px rgba(90, 57, 30, 0.08);
       font-family: "Segoe UI", "Noto Sans", sans-serif;
     }
 
@@ -25,72 +25,87 @@
     body {
       margin: 0;
       background:
-        radial-gradient(circle at top left, rgba(214, 161, 113, 0.25), transparent 28%),
-        linear-gradient(180deg, #f8f3ea 0%, var(--bg) 100%);
+        radial-gradient(circle at top left, rgba(219, 165, 116, 0.25), transparent 30%),
+        linear-gradient(180deg, #faf6ef 0%, var(--bg) 100%);
       color: var(--text);
     }
 
     .shell {
-      width: min(1440px, calc(100vw - 32px));
-      margin: 24px auto 40px;
+      width: min(1600px, calc(100vw - 28px));
+      margin: 18px auto 32px;
     }
 
     .hero, .panel {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: 22px;
       box-shadow: var(--shadow);
     }
 
     .hero {
       padding: 28px;
       display: grid;
+      grid-template-columns: 1.4fr 1fr;
       gap: 20px;
-      grid-template-columns: 1.5fr 1fr;
+      margin-bottom: 18px;
     }
 
     .hero h1 {
       margin: 0 0 10px;
-      font-size: clamp(28px, 5vw, 42px);
-      line-height: 1.05;
-      letter-spacing: -0.03em;
+      font-size: clamp(30px, 5vw, 46px);
+      letter-spacing: -0.04em;
+      line-height: 1.02;
     }
 
     .hero p {
       margin: 0;
       color: var(--muted);
+      line-height: 1.6;
       max-width: 72ch;
-      line-height: 1.55;
     }
 
-    .hero-actions {
-      display: flex;
-      align-items: flex-start;
-      justify-content: flex-end;
+    .hero-meta {
+      display: grid;
       gap: 12px;
-      flex-wrap: wrap;
+      align-content: start;
+      justify-items: start;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 14px;
     }
 
     button {
       border: 0;
       border-radius: 999px;
-      padding: 12px 18px;
+      padding: 11px 16px;
       background: var(--accent);
       color: #fff;
-      cursor: pointer;
       font: inherit;
-      font-weight: 600;
+      font-weight: 700;
+      cursor: pointer;
       transition: transform 120ms ease, opacity 120ms ease;
     }
 
     button.secondary {
-      background: var(--panel-strong);
+      background: var(--panel-2);
       color: var(--text);
       border: 1px solid var(--border);
     }
 
+    button.ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
     button:disabled {
-      opacity: 0.6;
+      opacity: 0.55;
       cursor: wait;
     }
 
@@ -98,82 +113,155 @@
       transform: translateY(-1px);
     }
 
-    .status {
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .grid {
-      margin-top: 20px;
+    .layout {
       display: grid;
-      gap: 20px;
-      grid-template-columns: 360px 1fr;
+      grid-template-columns: 320px minmax(0, 1fr) 420px;
+      gap: 18px;
       align-items: start;
     }
 
     .panel {
-      padding: 20px;
+      padding: 18px;
+    }
+
+    .panel h2, .panel h3 {
+      margin: 0 0 12px;
+      letter-spacing: -0.03em;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .item {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      border-radius: 16px;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 120ms ease, transform 120ms ease;
+    }
+
+    .item:hover {
+      transform: translateY(-1px);
+    }
+
+    .item.active {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(143, 63, 23, 0.1);
+    }
+
+    .item-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .item-meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 84px;
+      resize: vertical;
     }
 
     .summary-grid {
       display: grid;
-      gap: 12px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 14px;
+      gap: 10px;
+      margin-top: 12px;
     }
 
     .metric {
-      background: var(--panel-strong);
+      border-radius: 14px;
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
+      background: var(--panel-2);
+      padding: 12px;
     }
 
     .metric-label {
+      font-size: 12px;
       color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
 
     .metric-value {
-      font-size: 24px;
-      font-weight: 700;
+      font-size: 22px;
+      font-weight: 800;
       letter-spacing: -0.03em;
     }
 
-    .metric-table, .cases-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
+    .question-card, .case-card {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      border-radius: 18px;
+      padding: 14px;
     }
 
-    .metric-table td, .metric-table th,
-    .cases-table td, .cases-table th {
-      padding: 10px 8px;
-      border-bottom: 1px solid rgba(216, 200, 176, 0.7);
-      vertical-align: top;
-      text-align: left;
+    .question-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
     }
 
-    .cases-table tr[data-selected="true"] {
-      background: rgba(142, 59, 18, 0.08);
+    .question-card textarea[data-kind="question"] {
+      min-height: 92px;
     }
 
-    .cases-table tbody tr {
-      cursor: pointer;
+    .inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .inline input[type="checkbox"] {
+      width: auto;
+      margin: 0;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
       border-radius: 999px;
       padding: 4px 10px;
       font-size: 12px;
-      font-weight: 600;
-      background: var(--panel-strong);
+      font-weight: 700;
       border: 1px solid var(--border);
+      background: rgba(255,255,255,0.65);
       margin-right: 6px;
       margin-bottom: 6px;
     }
@@ -181,49 +269,44 @@
     .badge.pass { color: var(--success); }
     .badge.fail { color: var(--danger); }
 
-    .detail-grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 16px;
-    }
-
-    .detail-card {
-      background: var(--panel-strong);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      min-height: 140px;
-    }
-
-    .detail-card h3 {
-      margin: 0 0 10px;
-      font-size: 14px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
     pre {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
       font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .split {
+      display: grid;
+      gap: 12px;
+    }
+
+    .muted {
+      color: var(--muted);
       font-size: 13px;
       line-height: 1.5;
     }
 
     .empty {
       color: var(--muted);
-      padding: 18px 0 8px;
+      font-size: 14px;
+      padding: 8px 0;
     }
 
-    @media (max-width: 1100px) {
-      .hero, .grid, .detail-grid {
+    @media (max-width: 1380px) {
+      .layout {
         grid-template-columns: 1fr;
       }
-      .hero-actions {
-        justify-content: flex-start;
+      .hero {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .summary-grid, .question-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -232,107 +315,94 @@
   <div class="shell">
     <section class="hero">
       <div>
-        <h1>Rutoken RAG Benchmark</h1>
+        <h1>Rutoken RAG Benchmark Studio</h1>
         <p>
-          Deterministic evaluation для текущего RAG: вопросы, ответы, citations и rule-based метрики качества.
-          Benchmark использует тот же pipeline, что и <code>/query</code>, и сохраняет последний прогон в JSON.
+          Полностью Python-based benchmark UI. Наборы вопросов и история прогонов хранятся в PostgreSQL.
+          Можно создавать и редактировать question sets, запускать benchmark по каждому набору отдельно
+          и просматривать историю run'ов со всеми case-level метриками.
         </p>
-        <div class="status" id="status">Загрузка данных...</div>
       </div>
-      <div class="hero-actions">
-        <button id="runButton">Запустить benchmark</button>
-        <button id="refreshButton" class="secondary">Обновить</button>
+      <div class="hero-meta">
+        <button id="newSetButton">Новый набор вопросов</button>
+        <button id="refreshButton" class="secondary">Обновить данные</button>
+        <div class="status" id="status">Загрузка...</div>
       </div>
     </section>
 
-    <section class="grid">
+    <section class="layout">
       <aside class="panel">
-        <h2>Сводка</h2>
-        <div class="summary-grid" id="summaryGrid"></div>
-        <h2 style="margin-top: 22px;">Метрики</h2>
-        <table class="metric-table" id="metricTable"></table>
-        <h2 style="margin-top: 22px;">Dataset</h2>
-        <div id="datasetMeta" class="empty">Нет данных.</div>
+        <h2>Наборы вопросов</h2>
+        <div id="setList" class="list"></div>
       </aside>
 
       <section class="panel">
-        <h2>Кейсы</h2>
-        <table class="cases-table" id="casesTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Вопрос</th>
-              <th>Score</th>
-              <th>Status</th>
-              <th>Latency</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div id="emptyCases" class="empty" hidden>Результаты benchmark еще не созданы.</div>
-
-        <div id="detailBlock" hidden>
-          <h2 style="margin-top: 22px;">Детали кейса</h2>
-          <div class="detail-grid">
-            <div class="detail-card">
-              <h3>Вопрос</h3>
-              <pre id="detailQuestion"></pre>
-            </div>
-            <div class="detail-card">
-              <h3>Rewrite / Filters</h3>
-              <pre id="detailRewrite"></pre>
-            </div>
-            <div class="detail-card" style="grid-column: 1 / -1;">
-              <h3>Ответ</h3>
-              <pre id="detailAnswer"></pre>
-            </div>
-            <div class="detail-card">
-              <h3>Checks</h3>
-              <pre id="detailChecks"></pre>
-            </div>
-            <div class="detail-card">
-              <h3>Diagnostics</h3>
-              <pre id="detailDiagnostics"></pre>
-            </div>
-            <div class="detail-card">
-              <h3>Citations</h3>
-              <pre id="detailCitations"></pre>
-            </div>
-            <div class="detail-card">
-              <h3>Retrieved Chunks</h3>
-              <pre id="detailChunks"></pre>
-            </div>
+        <div class="inline" style="justify-content: space-between;">
+          <h2>Редактор набора</h2>
+          <div class="actions">
+            <button id="saveSetButton">Сохранить набор</button>
+            <button id="runSetButton" class="secondary">Запустить benchmark</button>
           </div>
         </div>
+
+        <div class="stack" style="margin-top: 12px;">
+          <label>
+            Название
+            <input id="setName" type="text" placeholder="Например: PKCS#11 baseline" />
+          </label>
+          <label>
+            Описание
+            <textarea id="setDescription" placeholder="Кратко опиши назначение набора вопросов"></textarea>
+          </label>
+        </div>
+
+        <div class="inline" style="justify-content: space-between; margin-top: 18px;">
+          <h3>Вопросы</h3>
+          <button id="addQuestionButton" class="ghost">Добавить вопрос</button>
+        </div>
+        <div id="questionList" class="stack" style="margin-top: 12px;"></div>
+      </section>
+
+      <section class="panel">
+        <h2>История benchmark</h2>
+        <div id="runList" class="list"></div>
+
+        <div id="runDetail" hidden style="margin-top: 18px;">
+          <h3>Детали прогона</h3>
+          <div class="summary-grid" id="runSummaryGrid"></div>
+          <div class="stack" id="runCases" style="margin-top: 14px;"></div>
+        </div>
+        <div id="runEmpty" class="empty">Для выбранного набора прогонов пока нет.</div>
       </section>
     </section>
   </div>
 
   <script>
     const statusEl = document.getElementById("status");
-    const runButton = document.getElementById("runButton");
+    const setListEl = document.getElementById("setList");
+    const runListEl = document.getElementById("runList");
+    const runDetailEl = document.getElementById("runDetail");
+    const runSummaryGridEl = document.getElementById("runSummaryGrid");
+    const runCasesEl = document.getElementById("runCases");
+    const runEmptyEl = document.getElementById("runEmpty");
+
+    const setNameEl = document.getElementById("setName");
+    const setDescriptionEl = document.getElementById("setDescription");
+    const questionListEl = document.getElementById("questionList");
+
+    const newSetButton = document.getElementById("newSetButton");
     const refreshButton = document.getElementById("refreshButton");
-    const summaryGrid = document.getElementById("summaryGrid");
-    const metricTable = document.getElementById("metricTable");
-    const datasetMeta = document.getElementById("datasetMeta");
-    const casesBody = document.querySelector("#casesTable tbody");
-    const emptyCases = document.getElementById("emptyCases");
-    const detailBlock = document.getElementById("detailBlock");
+    const saveSetButton = document.getElementById("saveSetButton");
+    const runSetButton = document.getElementById("runSetButton");
+    const addQuestionButton = document.getElementById("addQuestionButton");
 
-    const detailQuestion = document.getElementById("detailQuestion");
-    const detailRewrite = document.getElementById("detailRewrite");
-    const detailAnswer = document.getElementById("detailAnswer");
-    const detailChecks = document.getElementById("detailChecks");
-    const detailDiagnostics = document.getElementById("detailDiagnostics");
-    const detailCitations = document.getElementById("detailCitations");
-    const detailChunks = document.getElementById("detailChunks");
-
-    let currentResults = null;
-    let selectedCaseId = null;
+    let questionSets = [];
+    let selectedSetId = null;
+    let selectedRunId = null;
+    let currentEditor = { id: null, name: "", description: "", questions: [] };
 
     function formatPercent(value) {
       if (value === null || value === undefined) return "n/a";
-      return `${(value * 100).toFixed(1)}%`;
+      return `${(Number(value) * 100).toFixed(1)}%`;
     }
 
     function formatLatency(value) {
@@ -341,163 +411,429 @@
     }
 
     function escapeHtml(value) {
-      return String(value)
+      return String(value ?? "")
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
     }
 
-    function renderSummary(summary) {
-      if (!summary) {
-        summaryGrid.innerHTML = "";
-        metricTable.innerHTML = "";
+    function csvToArray(value) {
+      return value.split(",").map(item => item.trim()).filter(Boolean);
+    }
+
+    function arrayToCsv(items) {
+      return (items || []).join(", ");
+    }
+
+    function groupsToText(groups) {
+      return (groups || []).map(group => group.join(" | ")).join("\n");
+    }
+
+    function textToGroups(value) {
+      return value
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => line.split("|").map(item => item.trim()).filter(Boolean))
+        .filter(group => group.length > 0);
+    }
+
+    function createQuestionTemplate(question = {}) {
+      return {
+        id: question.id || null,
+        case_key: question.case_key || `case-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        question: question.question || "",
+        tags: question.tags || [],
+        reference_answer: question.reference_answer || "",
+        exact_answer: question.exact_answer || "",
+        required_terms: question.required_terms || [],
+        required_any: question.required_any || [],
+        forbidden_terms: question.forbidden_terms || [],
+        required_sources: question.required_sources || [],
+        expected_refusal: Boolean(question.expected_refusal),
+        notes: question.notes || "",
+      };
+    }
+
+    function renderSetList() {
+      setListEl.innerHTML = "";
+      if (!questionSets.length) {
+        setListEl.innerHTML = '<div class="empty">Наборов пока нет. Создай первый набор вопросов.</div>';
         return;
       }
 
-      summaryGrid.innerHTML = `
+      for (const item of questionSets) {
+        const card = document.createElement("div");
+        card.className = `item${item.id === selectedSetId ? " active" : ""}`;
+        card.innerHTML = `
+          <div class="item-title">${escapeHtml(item.name)}</div>
+          <div class="item-meta">
+            Вопросов: ${item.question_count}<br />
+            Последний run: ${item.last_run_at ? escapeHtml(item.last_run_at) : "еще не запускался"}
+          </div>
+        `;
+        card.addEventListener("click", () => selectSet(item.id));
+        setListEl.appendChild(card);
+      }
+    }
+
+    function renderEditor() {
+      setNameEl.value = currentEditor.name || "";
+      setDescriptionEl.value = currentEditor.description || "";
+      questionListEl.innerHTML = "";
+
+      if (!currentEditor.questions.length) {
+        questionListEl.innerHTML = '<div class="empty">В этом наборе пока нет вопросов.</div>';
+        return;
+      }
+
+      currentEditor.questions.forEach((question, index) => {
+        const card = document.createElement("div");
+        card.className = "question-card";
+        card.innerHTML = `
+          <div class="inline" style="justify-content: space-between;">
+            <strong>Вопрос #${index + 1}</strong>
+            <button class="danger" data-action="remove">Удалить</button>
+          </div>
+          <div class="question-grid">
+            <label>case_key
+              <input data-kind="case_key" type="text" value="${escapeHtml(question.case_key)}" />
+            </label>
+            <label>tags через запятую
+              <input data-kind="tags" type="text" value="${escapeHtml(arrayToCsv(question.tags))}" />
+            </label>
+          </div>
+          <label style="margin-top: 10px;">Вопрос
+            <textarea data-kind="question">${escapeHtml(question.question)}</textarea>
+          </label>
+          <div class="question-grid">
+            <label>reference_answer
+              <textarea data-kind="reference_answer">${escapeHtml(question.reference_answer || "")}</textarea>
+            </label>
+          </div>
+          <div class="question-grid">
+            <label>exact_answer
+              <textarea data-kind="exact_answer">${escapeHtml(question.exact_answer || "")}</textarea>
+            </label>
+            <label>notes
+              <textarea data-kind="notes">${escapeHtml(question.notes || "")}</textarea>
+            </label>
+          </div>
+          <div class="question-grid">
+            <label>required_terms через запятую
+              <textarea data-kind="required_terms">${escapeHtml(arrayToCsv(question.required_terms))}</textarea>
+            </label>
+            <label>forbidden_terms через запятую
+              <textarea data-kind="forbidden_terms">${escapeHtml(arrayToCsv(question.forbidden_terms))}</textarea>
+            </label>
+          </div>
+          <div class="question-grid">
+            <label>required_any, по группе на строку, варианты через |
+              <textarea data-kind="required_any">${escapeHtml(groupsToText(question.required_any))}</textarea>
+            </label>
+            <label>required_sources, по URL на строку
+              <textarea data-kind="required_sources">${escapeHtml((question.required_sources || []).join("\\n"))}</textarea>
+            </label>
+          </div>
+          <label class="inline" style="margin-top: 8px;">
+            <input data-kind="expected_refusal" type="checkbox" ${question.expected_refusal ? "checked" : ""} />
+            expected_refusal
+          </label>
+        `;
+
+        card.querySelector('[data-action="remove"]').addEventListener("click", () => {
+          currentEditor.questions.splice(index, 1);
+          renderEditor();
+        });
+
+        card.querySelectorAll("[data-kind]").forEach(field => {
+          field.addEventListener("input", () => {
+            syncQuestionCard(index, card);
+          });
+          field.addEventListener("change", () => {
+            syncQuestionCard(index, card);
+          });
+        });
+
+        questionListEl.appendChild(card);
+      });
+    }
+
+    function syncQuestionCard(index, card) {
+      currentEditor.questions[index] = {
+        id: currentEditor.questions[index].id,
+        case_key: card.querySelector('[data-kind="case_key"]').value.trim(),
+        question: card.querySelector('[data-kind="question"]').value.trim(),
+        tags: csvToArray(card.querySelector('[data-kind="tags"]').value),
+        reference_answer: card.querySelector('[data-kind="reference_answer"]').value.trim() || null,
+        exact_answer: card.querySelector('[data-kind="exact_answer"]').value.trim() || null,
+        required_terms: csvToArray(card.querySelector('[data-kind="required_terms"]').value),
+        required_any: textToGroups(card.querySelector('[data-kind="required_any"]').value),
+        forbidden_terms: csvToArray(card.querySelector('[data-kind="forbidden_terms"]').value),
+        required_sources: card.querySelector('[data-kind="required_sources"]').value
+          .split(/\r?\n/)
+          .map(item => item.trim())
+          .filter(Boolean),
+        expected_refusal: card.querySelector('[data-kind="expected_refusal"]').checked,
+        notes: card.querySelector('[data-kind="notes"]').value.trim() || null,
+      };
+    }
+
+    function renderRuns(runs) {
+      runListEl.innerHTML = "";
+      if (!runs.length) {
+        runEmptyEl.hidden = false;
+        runDetailEl.hidden = true;
+        return;
+      }
+      runEmptyEl.hidden = true;
+      for (const item of runs) {
+        const card = document.createElement("div");
+        card.className = `item${item.id === selectedRunId ? " active" : ""}`;
+        card.innerHTML = `
+          <div class="item-title">${escapeHtml(item.created_at)}</div>
+          <div class="item-meta">
+            Pass rate: ${formatPercent(item.pass_rate)}<br />
+            Passed: ${item.passed_cases}/${item.total_cases}<br />
+            Avg latency: ${formatLatency(item.average_latency_ms)}
+          </div>
+        `;
+        card.addEventListener("click", () => selectRun(item.id));
+        runListEl.appendChild(card);
+      }
+    }
+
+    function renderRunDetail(run) {
+      if (!run) {
+        runDetailEl.hidden = true;
+        return;
+      }
+      runDetailEl.hidden = false;
+      const summary = run.summary || {};
+      runSummaryGridEl.innerHTML = `
         <div class="metric">
           <div class="metric-label">Pass rate</div>
-          <div class="metric-value">${formatPercent(summary.pass_rate)}</div>
+          <div class="metric-value">${formatPercent(run.pass_rate)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Passed cases</div>
+          <div class="metric-value">${run.passed_cases}/${run.total_cases}</div>
         </div>
         <div class="metric">
           <div class="metric-label">Average score</div>
-          <div class="metric-value">${formatPercent(summary.average_score)}</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Average latency</div>
-          <div class="metric-value">${formatLatency(summary.average_latency_ms)}</div>
+          <div class="metric-value">${formatPercent(run.average_score)}</div>
         </div>
         <div class="metric">
           <div class="metric-label">P95 latency</div>
-          <div class="metric-value">${formatLatency(summary.p95_latency_ms)}</div>
+          <div class="metric-value">${formatLatency(run.p95_latency_ms)}</div>
         </div>
       `;
-
-      const metricRows = Object.entries(summary.metrics || {})
-        .map(([name, metric]) => `
-          <tr>
-            <th>${escapeHtml(name)}</th>
-            <td>${metric.applicable}</td>
-            <td>${metric.passed}</td>
-            <td>${formatPercent(metric.rate)}</td>
-          </tr>
-        `)
-        .join("");
-
-      metricTable.innerHTML = `
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Applicable</th>
-            <th>Passed</th>
-            <th>Rate</th>
-          </tr>
-        </thead>
-        <tbody>${metricRows}</tbody>
-      `;
-    }
-
-    function renderCases(results) {
-      const cases = results?.cases || [];
-      casesBody.innerHTML = "";
-      emptyCases.hidden = cases.length > 0;
-      if (!cases.length) {
-        detailBlock.hidden = true;
-        return;
-      }
-
-      const selected = selectedCaseId && cases.find(item => item.id === selectedCaseId)
-        ? selectedCaseId
-        : cases[0].id;
-      selectedCaseId = selected;
-
-      for (const item of cases) {
-        const row = document.createElement("tr");
-        row.dataset.selected = String(item.id === selectedCaseId);
-        row.innerHTML = `
-          <td>${escapeHtml(item.id)}</td>
-          <td>${escapeHtml(item.question)}</td>
-          <td>${formatPercent(item.score)}</td>
-          <td><span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span></td>
-          <td>${formatLatency(item.actual.latency_ms)}</td>
+      runCasesEl.innerHTML = "";
+      for (const item of run.cases || []) {
+        const card = document.createElement("div");
+        card.className = "case-card";
+        card.innerHTML = `
+          <div class="inline" style="justify-content: space-between;">
+            <strong>${escapeHtml(item.id)}: ${escapeHtml(item.question)}</strong>
+            <span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span>
+          </div>
+          <div class="muted" style="margin: 8px 0 10px;">
+            Score ${formatPercent(item.score)} | Latency ${formatLatency(item.actual.latency_ms)}
+          </div>
+          <pre>${escapeHtml(JSON.stringify({
+            checks: item.checks,
+            diagnostics: item.diagnostics,
+            answer: item.actual.answer,
+            citations: item.actual.citations,
+          }, null, 2))}</pre>
         `;
-        row.addEventListener("click", () => {
-          selectedCaseId = item.id;
-          renderCases(results);
-          renderDetail(item);
-        });
-        casesBody.appendChild(row);
+        runCasesEl.appendChild(card);
       }
-
-      renderDetail(cases.find(item => item.id === selectedCaseId));
     }
 
-    function renderDetail(item) {
-      if (!item) {
-        detailBlock.hidden = true;
-        return;
+    function collectEditorPayload() {
+      return {
+        name: setNameEl.value.trim(),
+        description: setDescriptionEl.value.trim() || null,
+        questions: currentEditor.questions.map(question => ({
+          id: question.id,
+          case_key: question.case_key,
+          question: question.question,
+          tags: question.tags,
+          reference_answer: question.reference_answer,
+          exact_answer: question.exact_answer,
+          required_terms: question.required_terms,
+          required_any: question.required_any,
+          forbidden_terms: question.forbidden_terms,
+          required_sources: question.required_sources,
+          expected_refusal: question.expected_refusal,
+          notes: question.notes,
+        })),
+      };
+    }
+
+    async function loadQuestionSets() {
+      const response = await fetch("/benchmark/sets");
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить наборы вопросов");
       }
-      detailBlock.hidden = false;
-      detailQuestion.textContent = item.question;
-      detailRewrite.textContent = JSON.stringify(
-        {
-          rewritten_query: item.actual.rewritten_query,
-          filters: item.actual.filters,
-          tags: item.tags,
-          latency_ms: item.actual.latency_ms,
-        },
-        null,
-        2,
-      );
-      detailAnswer.textContent = item.actual.answer;
-      detailChecks.textContent = JSON.stringify(item.checks, null, 2);
-      detailDiagnostics.textContent = JSON.stringify(item.diagnostics, null, 2);
-      detailCitations.textContent = JSON.stringify(item.actual.citations, null, 2);
-      detailChunks.textContent = JSON.stringify(item.actual.retrieved_chunks, null, 2);
+      questionSets = await response.json();
+      renderSetList();
+      if (!selectedSetId && questionSets.length) {
+        await selectSet(questionSets[0].id);
+      }
+      if (!questionSets.length) {
+        startNewSet();
+      }
     }
 
-    async function loadResults() {
-      statusEl.textContent = "Загрузка benchmark results...";
-      const [resultsResponse, casesResponse] = await Promise.all([
-        fetch("/benchmark/results"),
-        fetch("/benchmark/cases"),
-      ]);
-      const resultsPayload = await resultsResponse.json();
-      const casesPayload = await casesResponse.json();
-      currentResults = resultsPayload;
-      datasetMeta.textContent = `Dataset: ${casesPayload.dataset_path} | Кейсов: ${casesPayload.cases.length}`;
-      renderSummary(resultsPayload.summary);
-      renderCases(resultsPayload);
-      statusEl.textContent = resultsPayload.summary
-        ? `Последний прогон: ${resultsPayload.generated_at ?? "n/a"}`
-        : "Результаты еще не созданы. Можно запускать benchmark.";
+    async function selectSet(setId) {
+      selectedSetId = setId;
+      renderSetList();
+      const response = await fetch(`/benchmark/sets/${setId}`);
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить выбранный набор");
+      }
+      currentEditor = await response.json();
+      renderEditor();
+      await loadRuns(setId);
     }
 
-    async function runBenchmark() {
-      runButton.disabled = true;
-      statusEl.textContent = "Benchmark выполняется. Это может занять заметное время, если используются внешние модели.";
+    async function loadRuns(setId) {
+      const response = await fetch(`/benchmark/runs?set_id=${encodeURIComponent(setId)}`);
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить историю benchmark");
+      }
+      const runs = await response.json();
+      renderRuns(runs);
+      if (runs.length) {
+        await selectRun(runs[0].id);
+      } else {
+        selectedRunId = null;
+        renderRunDetail(null);
+      }
+    }
+
+    async function selectRun(runId) {
+      selectedRunId = runId;
+      const response = await fetch(`/benchmark/runs/${runId}`);
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить детали benchmark run");
+      }
+      const payload = await response.json();
+      renderRuns(await fetchJson(`/benchmark/runs?set_id=${encodeURIComponent(selectedSetId)}`));
+      renderRunDetail(payload);
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${url}`);
+      }
+      return response.json();
+    }
+
+    function startNewSet() {
+      selectedSetId = null;
+      selectedRunId = null;
+      currentEditor = {
+        id: null,
+        name: "",
+        description: "",
+        questions: [createQuestionTemplate()],
+      };
+      renderSetList();
+      renderEditor();
+      renderRuns([]);
+      renderRunDetail(null);
+    }
+
+    async function saveCurrentSet() {
+      const payload = collectEditorPayload();
+      if (!payload.name) {
+        throw new Error("Название набора обязательно");
+      }
+      if (!payload.questions.length) {
+        throw new Error("Добавь хотя бы один вопрос");
+      }
+      const method = selectedSetId ? "PUT" : "POST";
+      const url = selectedSetId ? `/benchmark/sets/${selectedSetId}` : "/benchmark/sets";
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Не удалось сохранить набор");
+      }
+      const saved = await response.json();
+      selectedSetId = saved.id;
+      currentEditor = saved;
+      await loadQuestionSets();
+      await selectSet(saved.id);
+    }
+
+    async function runCurrentSet() {
+      if (!selectedSetId) {
+        throw new Error("Сначала сохрани набор вопросов");
+      }
+      const response = await fetch(`/benchmark/sets/${selectedSetId}/run`, { method: "POST" });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Не удалось запустить benchmark");
+      }
+      const run = await response.json();
+      await loadQuestionSets();
+      await loadRuns(selectedSetId);
+      renderRunDetail(run);
+      selectedRunId = run.id;
+    }
+
+    newSetButton.addEventListener("click", startNewSet);
+    refreshButton.addEventListener("click", async () => {
+      await loadQuestionSets();
+      if (selectedSetId) {
+        await selectSet(selectedSetId);
+      }
+    });
+    saveSetButton.addEventListener("click", async () => {
+      saveSetButton.disabled = true;
+      statusEl.textContent = "Сохраняю набор вопросов...";
       try {
-        const response = await fetch("/benchmark/run", { method: "POST" });
-        if (!response.ok) {
-          const payload = await response.json();
-          throw new Error(payload.detail || "Benchmark run failed");
-        }
-        currentResults = await response.json();
-        renderSummary(currentResults.summary);
-        renderCases(currentResults);
-        statusEl.textContent = `Benchmark завершен: ${currentResults.generated_at}`;
+        await saveCurrentSet();
+        statusEl.textContent = "Набор вопросов сохранен.";
       } catch (error) {
         statusEl.textContent = `Ошибка: ${error.message}`;
       } finally {
-        runButton.disabled = false;
+        saveSetButton.disabled = false;
       }
-    }
-
-    runButton.addEventListener("click", runBenchmark);
-    refreshButton.addEventListener("click", loadResults);
-    loadResults().catch(error => {
-      statusEl.textContent = `Ошибка загрузки: ${error.message}`;
     });
+    runSetButton.addEventListener("click", async () => {
+      runSetButton.disabled = true;
+      statusEl.textContent = "Benchmark выполняется. Это может занять заметное время.";
+      try {
+        await runCurrentSet();
+        statusEl.textContent = "Benchmark завершен.";
+      } catch (error) {
+        statusEl.textContent = `Ошибка: ${error.message}`;
+      } finally {
+        runSetButton.disabled = false;
+      }
+    });
+    addQuestionButton.addEventListener("click", () => {
+      currentEditor.questions.push(createQuestionTemplate());
+      renderEditor();
+    });
+
+    (async function boot() {
+      try {
+        await loadQuestionSets();
+        statusEl.textContent = "Данные загружены.";
+      } catch (error) {
+        statusEl.textContent = `Ошибка загрузки: ${error.message}`;
+      }
+    })();
   </script>
 </body>
 </html>

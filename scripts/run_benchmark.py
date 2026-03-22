@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 
 from app.config import settings
@@ -13,6 +14,10 @@ from app.services.search import HybridSearchService
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--set-id", dest="set_id")
+    args = parser.parse_args()
+
     bootstrap_if_needed(settings)
     openrouter = OpenRouterProvider(settings)
     pipeline = RagPipelineService(
@@ -21,8 +26,15 @@ def main() -> None:
         GenerationService(openrouter),
     )
     benchmark = BenchmarkService(settings, pipeline)
-    result = benchmark.run()
-    print(json.dumps(result.to_record(), ensure_ascii=False, indent=2))
+    benchmark.initialize()
+    set_id = args.set_id
+    if not set_id:
+        sets = benchmark.list_question_sets()
+        if not sets:
+            raise RuntimeError("No benchmark question sets found")
+        set_id = sets[0]["id"]
+    result = benchmark.run(set_id)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

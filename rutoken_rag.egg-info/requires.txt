@@ -2,6 +2,7 @@ fastapi<1.0.0,>=0.122.0
 gigachat<1.0.0,>=0.2.0
 numpy<3.0.0,>=2.2.3
 openrouter<1.0.0,>=0.7.11
+psycopg[binary]<4.0.0,>=3.2.10
 qdrant-client<2.0.0,>=1.15.1
 rank-bm25<1.0.0,>=0.2.2
 sentence-transformers<6.0.0,>=5.1.2

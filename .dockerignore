@@ -1,4 +1,5 @@
 .git
+.gitignore
 .venv
 .venv313
 __pycache__
@@ -6,4 +7,15 @@ __pycache__
 *.pyo
 *.pyd
 *.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.idea
+.vscode
+*.log
 data
+benchmark
+scrape_result_100
+rutoken_rag.egg-info

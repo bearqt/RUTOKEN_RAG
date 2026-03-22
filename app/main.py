@@ -3,10 +3,21 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from app.api.schemas import CitationResponse, HealthResponse, IngestResponse, QueryRequest, QueryResponse, RetrievedChunkResponse
+from app.api.schemas import (
+    BenchmarkQuestionSetInput,
+    BenchmarkQuestionSetResponse,
+    BenchmarkQuestionSetSummaryResponse,
+    BenchmarkRunSummaryResponse,
+    CitationResponse,
+    HealthResponse,
+    IngestResponse,
+    QueryRequest,
+    QueryResponse,
+    RetrievedChunkResponse,
+)
 from app.config import settings
 from app.providers.gigachat import GigaChatEmbeddingsProvider, ProviderConfigurationError
 from app.providers.openrouter import OpenRouterProvider
@@ -34,6 +45,7 @@ async def lifespan(app: FastAPI):
     app.state.ingestion = IngestionService(settings)
     app.state.pipeline = RagPipelineService(query_analysis, search, generation)
     app.state.benchmark = BenchmarkService(settings, app.state.pipeline)
+    app.state.benchmark.initialize()
     yield
 
 
@@ -109,33 +121,80 @@ def benchmark_page() -> HTMLResponse:
     return HTMLResponse(BENCHMARK_PAGE.read_text(encoding="utf-8"))
 
 
-@app.get("/benchmark/cases")
-def benchmark_cases() -> dict:
+@app.get("/benchmark/sets", response_model=list[BenchmarkQuestionSetSummaryResponse])
+def benchmark_sets() -> list[BenchmarkQuestionSetSummaryResponse]:
+    return [
+        BenchmarkQuestionSetSummaryResponse(**item)
+        for item in app.state.benchmark.list_question_sets()
+    ]
+
+
+@app.post("/benchmark/sets", response_model=BenchmarkQuestionSetResponse)
+def benchmark_create_set(request: BenchmarkQuestionSetInput) -> BenchmarkQuestionSetResponse:
     try:
-        cases = app.state.benchmark.preview_cases()
-    except FileNotFoundError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        created = app.state.benchmark.create_question_set(request.model_dump())
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    return {"dataset_path": str(settings.benchmark_dataset_path), "cases": cases}
+    return BenchmarkQuestionSetResponse(**created)
 
 
-@app.get("/benchmark/results")
-def benchmark_results() -> dict:
-    payload = app.state.benchmark.load_last_run()
+@app.get("/benchmark/sets/{set_id}", response_model=BenchmarkQuestionSetResponse)
+def benchmark_get_set(set_id: str) -> BenchmarkQuestionSetResponse:
+    payload = app.state.benchmark.get_question_set(set_id)
     if payload is None:
-        return {"dataset_path": str(settings.benchmark_dataset_path), "summary": None, "cases": []}
-    return payload
+        raise HTTPException(status_code=404, detail=f"Question set not found: {set_id}")
+    return BenchmarkQuestionSetResponse(**payload)
 
 
-@app.post("/benchmark/run")
-def benchmark_run() -> dict:
+@app.put("/benchmark/sets/{set_id}", response_model=BenchmarkQuestionSetResponse)
+def benchmark_update_set(set_id: str, request: BenchmarkQuestionSetInput) -> BenchmarkQuestionSetResponse:
     try:
-        run = app.state.benchmark.run()
+        updated = app.state.benchmark.update_question_set(set_id, request.model_dump())
+    except ProviderConfigurationError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Question set not found: {set_id}")
+    return BenchmarkQuestionSetResponse(**updated)
+
+
+@app.post("/benchmark/sets/{set_id}/run")
+def benchmark_run(set_id: str) -> dict:
+    try:
+        run = app.state.benchmark.run(set_id)
     except ProviderConfigurationError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    return run.to_record()
+    return run
+
+
+@app.get("/benchmark/runs", response_model=list[BenchmarkRunSummaryResponse])
+def benchmark_runs(
+    set_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[BenchmarkRunSummaryResponse]:
+    return [
+        BenchmarkRunSummaryResponse(**item)
+        for item in app.state.benchmark.list_runs(set_id=set_id, limit=limit)
+    ]
+
+
+@app.get("/benchmark/runs/{run_id}")
+def benchmark_run_detail(run_id: str) -> dict:
+    payload = app.state.benchmark.get_run(run_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Benchmark run not found: {run_id}")
+    return payload
+
+
+@app.get("/benchmark/results")
+def benchmark_latest_result(set_id: str | None = None) -> dict:
+    runs = app.state.benchmark.list_runs(set_id=set_id, limit=1)
+    if not runs:
+        return {"run": None}
+    payload = app.state.benchmark.get_run(runs[0]["id"])
+    return {"run": payload}

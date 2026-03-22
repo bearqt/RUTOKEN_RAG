@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import json
 import math
 import re
 import statistics
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from app.config import Settings
 from app.domain.models import PipelineResult
+from app.services.benchmark_seed_data import get_seed_question_sets
+from app.services.benchmark_repository import BenchmarkRepository
 from app.services.pipeline import RagPipelineService
 
 
@@ -31,7 +31,9 @@ REFUSAL_PATTERNS = (
 class BenchmarkCase:
     case_id: str
     question: str
+    question_id: str | None = None
     tags: list[str] = field(default_factory=list)
+    reference_answer: str | None = None
     exact_answer: str | None = None
     required_terms: list[str] = field(default_factory=list)
     required_any: list[list[str]] = field(default_factory=list)
@@ -42,16 +44,18 @@ class BenchmarkCase:
 
     @classmethod
     def from_record(cls, record: dict[str, Any]) -> "BenchmarkCase":
-        case_id = record.get("id") or record.get("case_id")
+        case_id = record.get("case_key") or record.get("id")
         if not case_id:
-            raise ValueError("Benchmark case must contain 'id'")
+            raise ValueError("Benchmark case must contain 'case_key' or 'id'")
         question = str(record.get("question", "")).strip()
         if not question:
             raise ValueError(f"Benchmark case {case_id!r} must contain a non-empty question")
         return cls(
             case_id=str(case_id),
             question=question,
+            question_id=record.get("id"),
             tags=[str(item) for item in record.get("tags", [])],
+            reference_answer=record.get("reference_answer"),
             exact_answer=record.get("exact_answer"),
             required_terms=[str(item) for item in record.get("required_terms", [])],
             required_any=[[str(item) for item in group] for group in record.get("required_any", [])],
@@ -62,73 +66,68 @@ class BenchmarkCase:
         )
 
 
-@dataclass(slots=True)
-class BenchmarkRun:
-    generated_at: str
-    dataset_path: str
-    total_cases: int
-    summary: dict[str, Any]
-    cases: list[dict[str, Any]]
-
-    def to_record(self) -> dict[str, Any]:
-        return asdict(self)
-
-
 class BenchmarkService:
     def __init__(self, settings: Settings, pipeline: RagPipelineService) -> None:
         self._settings = settings
         self._pipeline = pipeline
+        self._repository = BenchmarkRepository(settings)
 
-    def run(self, dataset_path: Path | None = None) -> BenchmarkRun:
-        path = (dataset_path or self._settings.benchmark_dataset_path).resolve()
-        cases = self._load_cases(path)
+    def initialize(self) -> None:
+        self._repository.ensure_schema()
+        self._repository.ensure_seed_sets(get_seed_question_sets())
+
+    def list_question_sets(self) -> list[dict]:
+        return self._repository.list_question_sets()
+
+    def get_question_set(self, set_id: str) -> dict | None:
+        return self._repository.get_question_set(set_id)
+
+    def create_question_set(self, payload: dict) -> dict:
+        if not str(payload.get("name", "")).strip():
+            raise ValueError("Question set name is required")
+        return self._repository.create_question_set(payload)
+
+    def update_question_set(self, set_id: str, payload: dict) -> dict | None:
+        if not str(payload.get("name", "")).strip():
+            raise ValueError("Question set name is required")
+        return self._repository.update_question_set(set_id, payload)
+
+    def list_runs(self, set_id: str | None = None, limit: int = 100) -> list[dict]:
+        return self._repository.list_runs(set_id=set_id, limit=limit)
+
+    def get_run(self, run_id: str) -> dict | None:
+        return self._repository.get_run(run_id)
+
+    def run(self, set_id: str) -> dict:
+        question_set = self._repository.get_question_set(set_id)
+        if question_set is None:
+            raise FileNotFoundError(f"Question set is missing: {set_id}")
+        cases = [BenchmarkCase.from_record(item) for item in question_set["questions"]]
+        if not cases:
+            raise ValueError("Question set does not contain any questions")
         results = [self._run_case(case) for case in cases]
-        run = BenchmarkRun(
-            generated_at=datetime.now(UTC).isoformat(),
-            dataset_path=str(path),
-            total_cases=len(results),
-            summary=self._build_summary(results),
+        summary = self._build_summary(results)
+        return self._repository.save_run(
+            set_id=set_id,
+            set_name=question_set["name"],
+            summary=summary,
             cases=results,
         )
-        self._settings.benchmark_results_path.write_text(
-            json.dumps(run.to_record(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        return run
 
-    def load_last_run(self) -> dict[str, Any] | None:
-        path = self._settings.benchmark_results_path
-        if not path.exists():
-            return None
-        with path.open("r", encoding="utf-8") as file:
-            return json.load(file)
+    @staticmethod
+    def dataset_preview(question_set: dict) -> dict:
+        return {
+            "id": question_set["id"],
+            "name": question_set["name"],
+            "description": question_set.get("description"),
+            "questions": question_set.get("questions", []),
+        }
 
-    def preview_cases(self, dataset_path: Path | None = None) -> list[dict[str, Any]]:
-        path = (dataset_path or self._settings.benchmark_dataset_path).resolve()
-        return [asdict(case) for case in self._load_cases(path)]
-
-    def _load_cases(self, path: Path) -> list[BenchmarkCase]:
-        if not path.exists():
-            raise FileNotFoundError(f"Benchmark dataset is missing: {path}")
-        loaded: list[BenchmarkCase] = []
-        with path.open("r", encoding="utf-8") as file:
-            for line_number, line in enumerate(file, start=1):
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                try:
-                    record = json.loads(stripped)
-                except json.JSONDecodeError as error:
-                    raise ValueError(f"Invalid JSONL in {path} at line {line_number}") from error
-                loaded.append(BenchmarkCase.from_record(record))
-        return loaded
-
-    def _run_case(self, case: BenchmarkCase) -> dict[str, Any]:
+    def _run_case(self, case: BenchmarkCase) -> dict:
         started_at = time.perf_counter()
         pipeline_result = self._pipeline.run(case.question)
         latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
-        evaluation = self._evaluate_case(case, pipeline_result, latency_ms)
-        return evaluation
+        return self._evaluate_case(case, pipeline_result, latency_ms)
 
     def _evaluate_case(
         self,
@@ -165,35 +164,29 @@ class BenchmarkService:
             else True
         )
 
-        required_terms_applicable = bool(case.required_terms)
-        required_any_applicable = bool(case.required_any)
-        forbidden_terms_applicable = bool(case.forbidden_terms)
-        citation_applicable = bool(case.required_sources)
-        refusal_applicable = True
-
         checks = {
             "exact_match": {
                 "applicable": exact_match_applicable,
                 "passed": exact_match_passed,
             },
             "required_terms": {
-                "applicable": required_terms_applicable,
+                "applicable": bool(case.required_terms),
                 "passed": not missing_required_terms,
             },
             "required_any": {
-                "applicable": required_any_applicable,
+                "applicable": bool(case.required_any),
                 "passed": not missing_required_groups,
             },
             "forbidden_terms": {
-                "applicable": forbidden_terms_applicable,
+                "applicable": bool(case.forbidden_terms),
                 "passed": not unexpected_forbidden_terms,
             },
             "citations": {
-                "applicable": citation_applicable,
+                "applicable": bool(case.required_sources),
                 "passed": not missing_sources,
             },
             "refusal": {
-                "applicable": refusal_applicable,
+                "applicable": True,
                 "passed": actual_refusal == case.expected_refusal,
             },
         }
@@ -203,16 +196,14 @@ class BenchmarkService:
         overall_passed = all(item["passed"] for item in applicable_checks)
         score = round(passed_checks / len(applicable_checks), 4) if applicable_checks else 1.0
 
-        retrieved_source_urls = list(
-            dict.fromkeys(item.chunk.source_url for item in result.retrieved_chunks)
-        )
-
         return {
             "id": case.case_id,
+            "question_id": case.question_id,
             "question": case.question,
             "tags": case.tags,
             "notes": case.notes,
             "expected": {
+                "reference_answer": case.reference_answer,
                 "exact_answer": case.exact_answer,
                 "required_terms": case.required_terms,
                 "required_any": case.required_any,
@@ -233,7 +224,7 @@ class BenchmarkService:
                     }
                     for item in result.citations
                 ],
-                "retrieved_source_urls": retrieved_source_urls,
+                "retrieved_source_urls": list(dict.fromkeys(item.chunk.source_url for item in result.retrieved_chunks)),
                 "retrieved_chunks": [
                     {
                         "chunk_id": item.chunk.chunk_id,
@@ -267,11 +258,11 @@ class BenchmarkService:
         total_cases = len(results)
         if not results:
             return {
+                "passed_cases": 0,
                 "pass_rate": 0.0,
                 "average_score": 0.0,
                 "average_latency_ms": 0.0,
                 "p95_latency_ms": 0.0,
-                "passed_cases": 0,
                 "metrics": {},
                 "per_tag": {},
             }
@@ -290,19 +281,8 @@ class BenchmarkService:
 
         per_tag: dict[str, list[dict[str, Any]]] = {}
         for item in results:
-            tags = item.get("tags") or ["untagged"]
-            for tag in tags:
+            for tag in item.get("tags") or ["untagged"]:
                 per_tag.setdefault(tag, []).append(item)
-
-        per_tag_summary = {
-            tag: {
-                "total": len(items),
-                "passed": sum(1 for item in items if item["passed"]),
-                "pass_rate": round(sum(1 for item in items if item["passed"]) / len(items), 4),
-                "average_score": round(statistics.mean(item["score"] for item in items), 4),
-            }
-            for tag, items in per_tag.items()
-        }
 
         return {
             "passed_cases": sum(1 for item in results if item["passed"]),
@@ -311,7 +291,15 @@ class BenchmarkService:
             "average_latency_ms": round(statistics.mean(latencies), 2),
             "p95_latency_ms": round(percentile(latencies, 95), 2),
             "metrics": metrics,
-            "per_tag": per_tag_summary,
+            "per_tag": {
+                tag: {
+                    "total": len(items),
+                    "passed": sum(1 for item in items if item["passed"]),
+                    "pass_rate": round(sum(1 for item in items if item["passed"]) / len(items), 4),
+                    "average_score": round(statistics.mean(item["score"] for item in items), 4),
+                }
+                for tag, items in per_tag.items()
+            },
         }
 
 

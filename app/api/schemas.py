@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -49,3 +52,55 @@ class HealthResponse(BaseModel):
     openrouter_configured: bool
     gigachat_configured: bool
 
+
+class BenchmarkQuestionInput(BaseModel):
+    id: str | None = None
+    case_key: str = Field(min_length=1)
+    question: str = Field(min_length=3)
+    tags: list[str] = Field(default_factory=list)
+    reference_answer: str | None = None
+    exact_answer: str | None = None
+    required_terms: list[str] = Field(default_factory=list)
+    required_any: list[list[str]] = Field(default_factory=list)
+    forbidden_terms: list[str] = Field(default_factory=list)
+    required_sources: list[str] = Field(default_factory=list)
+    expected_refusal: bool = False
+    notes: str | None = None
+
+
+class BenchmarkQuestionSetInput(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    questions: list[BenchmarkQuestionInput] = Field(default_factory=list)
+
+
+class BenchmarkQuestionSetSummaryResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    question_count: int
+    last_run_at: datetime | None = None
+
+
+class BenchmarkQuestionSetResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    questions: list[dict[str, Any]]
+
+
+class BenchmarkRunSummaryResponse(BaseModel):
+    id: str
+    set_id: str
+    set_name: str
+    created_at: datetime
+    total_cases: int
+    passed_cases: int
+    pass_rate: float
+    average_score: float
+    average_latency_ms: float
+    p95_latency_ms: float

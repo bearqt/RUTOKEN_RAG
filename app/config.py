@@ -60,6 +60,12 @@ class Settings:
     openrouter_site_url: str | None = os.getenv("OPENROUTER_SITE_URL")
     openrouter_app_name: str | None = os.getenv("OPENROUTER_APP_NAME")
 
+    benchmark_database_url: str = os.getenv(
+        "BENCHMARK_DATABASE_URL",
+        "postgresql://rutoken:rutoken@localhost:5432/rutoken_rag",
+    )
+    benchmark_seed_path: Path = _get_path("BENCHMARK_SEED_PATH", "./benchmark/dataset.jsonl")
+
     reranker_model: str = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
     auto_ingest_on_start: bool = _get_bool("AUTO_INGEST_ON_START", False)
 
@@ -74,13 +80,10 @@ class Settings:
     chunks_path: Path = _get_path("CHUNKS_PATH", "./data/chunks.jsonl")
     bm25_path: Path = _get_path("BM25_PATH", "./data/bm25_index.json")
     manifest_path: Path = _get_path("MANIFEST_PATH", "./data/index_manifest.json")
-    benchmark_dataset_path: Path = _get_path("BENCHMARK_DATASET_PATH", "./benchmark/dataset.jsonl")
-    benchmark_results_path: Path = _get_path("BENCHMARK_RESULTS_PATH", "./data/benchmark_results.json")
 
     def ensure_directories(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.chunks_path.parent.mkdir(parents=True, exist_ok=True)
-        self.benchmark_results_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()

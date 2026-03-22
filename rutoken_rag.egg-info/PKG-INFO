@@ -8,6 +8,7 @@ Requires-Dist: fastapi<1.0.0,>=0.122.0
 Requires-Dist: gigachat<1.0.0,>=0.2.0
 Requires-Dist: numpy<3.0.0,>=2.2.3
 Requires-Dist: openrouter<1.0.0,>=0.7.11
+Requires-Dist: psycopg[binary]<4.0.0,>=3.2.10
 Requires-Dist: qdrant-client<2.0.0,>=1.15.1
 Requires-Dist: rank-bm25<1.0.0,>=0.2.2
 Requires-Dist: sentence-transformers<6.0.0,>=5.1.2

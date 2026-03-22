@@ -1,4 +1,15 @@
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: rutoken_rag
+      POSTGRES_USER: rutoken
+      POSTGRES_PASSWORD: rutoken
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+
   qdrant:
     image: qdrant/qdrant:latest
     ports:
@@ -16,13 +27,16 @@ services:
       SCRAPE_DIR: /app/scrape_result
       DATA_DIR: /app/data
       QDRANT_URL: http://qdrant:6333
+      BENCHMARK_DATABASE_URL: postgresql://rutoken:rutoken@postgres:5432/rutoken_rag
     ports:
       - "8000:8000"
     depends_on:
+      - postgres
       - qdrant
     volumes:
       - ./scrape_result:/app/scrape_result:ro
       - ./data:/app/data
+      - ./benchmark:/app/benchmark
 
   ingest:
     build:
@@ -42,5 +56,5 @@ services:
       - ./data:/app/data
 
 volumes:
+  postgres_storage:
   qdrant_storage:
-
