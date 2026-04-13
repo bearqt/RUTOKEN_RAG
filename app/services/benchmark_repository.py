@@ -52,6 +52,7 @@ class BenchmarkRepository:
                 id TEXT PRIMARY KEY,
                 set_id TEXT NOT NULL REFERENCES benchmark_question_sets(id) ON DELETE RESTRICT,
                 set_name TEXT NOT NULL,
+                retrieval_mode TEXT NOT NULL DEFAULT 'hybrid',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 total_cases INTEGER NOT NULL,
                 passed_cases INTEGER NOT NULL,
@@ -79,6 +80,7 @@ class BenchmarkRepository:
             for statement in statements:
                 conn.execute(statement)
             conn.execute("ALTER TABLE benchmark_questions ADD COLUMN IF NOT EXISTS reference_answer TEXT")
+            conn.execute("ALTER TABLE benchmark_runs ADD COLUMN IF NOT EXISTS retrieval_mode TEXT NOT NULL DEFAULT 'hybrid'")
 
     def seed_if_empty(self, seed_path: Path) -> None:
         with self._connect() as conn:
@@ -255,7 +257,7 @@ class BenchmarkRepository:
             if set_id:
                 rows = conn.execute(
                     """
-                    SELECT id, set_id, set_name, created_at, total_cases, passed_cases, pass_rate,
+                    SELECT id, set_id, set_name, COALESCE(retrieval_mode, 'hybrid') AS retrieval_mode, created_at, total_cases, passed_cases, pass_rate,
                            average_score, average_latency_ms, p95_latency_ms
                     FROM benchmark_runs
                     WHERE set_id = %s
@@ -267,7 +269,7 @@ class BenchmarkRepository:
             else:
                 rows = conn.execute(
                     """
-                    SELECT id, set_id, set_name, created_at, total_cases, passed_cases, pass_rate,
+                    SELECT id, set_id, set_name, COALESCE(retrieval_mode, 'hybrid') AS retrieval_mode, created_at, total_cases, passed_cases, pass_rate,
                            average_score, average_latency_ms, p95_latency_ms
                     FROM benchmark_runs
                     ORDER BY created_at DESC
@@ -281,7 +283,7 @@ class BenchmarkRepository:
         with self._connect() as conn:
             run_row = conn.execute(
                 """
-                SELECT id, set_id, set_name, created_at, total_cases, passed_cases, pass_rate,
+                SELECT id, set_id, set_name, COALESCE(retrieval_mode, 'hybrid') AS retrieval_mode, created_at, total_cases, passed_cases, pass_rate,
                        average_score, average_latency_ms, p95_latency_ms, summary
                 FROM benchmark_runs
                 WHERE id = %s
@@ -303,20 +305,21 @@ class BenchmarkRepository:
         payload["cases"] = [row["evaluation"] for row in case_rows]
         return payload
 
-    def save_run(self, set_id: str, set_name: str, summary: dict, cases: list[dict]) -> dict:
+    def save_run(self, set_id: str, set_name: str, retrieval_mode: str, summary: dict, cases: list[dict]) -> dict:
         run_id = str(uuid4())
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO benchmark_runs (
-                    id, set_id, set_name, total_cases, passed_cases, pass_rate,
+                    id, set_id, set_name, retrieval_mode, total_cases, passed_cases, pass_rate,
                     average_score, average_latency_ms, p95_latency_ms, summary
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     run_id,
                     set_id,
                     set_name,
+                    retrieval_mode,
                     len(cases),
                     summary["passed_cases"],
                     summary["pass_rate"],

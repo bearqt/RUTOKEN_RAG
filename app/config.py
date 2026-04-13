@@ -21,6 +21,13 @@ def _get_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _get_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return float(raw)
+
+
 def _get_path(name: str, default: str) -> Path:
     raw = os.getenv(name)
     path = Path(raw) if raw is not None else Path(default)
@@ -68,12 +75,18 @@ class Settings:
 
     reranker_model: str = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
     auto_ingest_on_start: bool = _get_bool("AUTO_INGEST_ON_START", False)
+    graph_enabled: bool = _get_bool("GRAPH_ENABLED", True)
 
     chunk_target_chars: int = _get_int("CHUNK_TARGET_CHARS", 2200)
     chunk_overlap_chars: int = _get_int("CHUNK_OVERLAP_CHARS", 250)
     table_row_window: int = _get_int("TABLE_ROW_WINDOW", 6)
     dense_candidate_count: int = _get_int("DENSE_CANDIDATE_COUNT", 20)
     sparse_candidate_count: int = _get_int("SPARSE_CANDIDATE_COUNT", 20)
+    graph_candidate_count: int = _get_int("GRAPH_CANDIDATE_COUNT", 20)
+    graph_neighbor_limit: int = _get_int("GRAPH_NEIGHBOR_LIMIT", 10)
+    graph_fact_limit: int = _get_int("GRAPH_FACT_LIMIT", 8)
+    graph_fusion_weight: float = _get_float("GRAPH_FUSION_WEIGHT", 0.4)
+    graph_document_boost: float = _get_float("GRAPH_DOCUMENT_BOOST", 0.3)
     rerank_candidate_count: int = _get_int("RERANK_CANDIDATE_COUNT", 20)
     final_context_count: int = _get_int("FINAL_CONTEXT_COUNT", 5)
 

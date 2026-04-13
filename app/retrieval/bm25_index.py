@@ -74,7 +74,7 @@ class BM25Index:
     @staticmethod
     def _document_tokens(chunk: Chunk) -> list[str]:
         symbols = " ".join(chunk.metadata.get("api_symbols", []))
+        entities = " ".join(chunk.metadata.get("entity_terms", []))
         heading = " ".join(chunk.heading_path)
-        augmented = f"{chunk.title}\n{heading}\n{chunk.text}\n{symbols}"
+        augmented = f"{chunk.title}\n{heading}\n{chunk.text}\n{symbols}\n{entities}"
         return tokenize_for_bm25(augmented)
-

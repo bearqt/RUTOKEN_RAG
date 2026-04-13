@@ -16,6 +16,12 @@ from app.services.search import HybridSearchService
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--set-id", dest="set_id")
+    parser.add_argument(
+        "--retrieval-mode",
+        dest="retrieval_mode",
+        default="hybrid",
+        choices=("dense", "bm25", "graph", "hybrid"),
+    )
     args = parser.parse_args()
 
     bootstrap_if_needed(settings)
@@ -33,7 +39,7 @@ def main() -> None:
         if not sets:
             raise RuntimeError("No benchmark question sets found")
         set_id = sets[0]["id"]
-    result = benchmark.run(set_id)
+    result = benchmark.run(set_id, retrieval_mode=args.retrieval_mode)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

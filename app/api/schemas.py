@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+RetrievalMode = Literal["dense", "bm25", "graph", "hybrid"]
 
 
 class QueryRequest(BaseModel):
     question: str = Field(min_length=3)
+    retrieval_mode: RetrievalMode = "hybrid"
 
 
 class CitationResponse(BaseModel):
@@ -25,6 +28,7 @@ class RetrievedChunkResponse(BaseModel):
     chunk_type: str
     dense_score: float
     sparse_score: float
+    graph_score: float
     fused_score: float
     rerank_score: float
     text: str
@@ -34,7 +38,12 @@ class QueryResponse(BaseModel):
     original_query: str
     rewritten_query: str
     filters: dict
+    query_mode: str
+    retrieval_mode: RetrievalMode
+    routing_confidence: float | None = None
+    routing_reason: str | None = None
     answer: str
+    graph_facts: list[str]
     citations: list[CitationResponse]
     retrieved_chunks: list[RetrievedChunkResponse]
 
@@ -97,6 +106,7 @@ class BenchmarkRunSummaryResponse(BaseModel):
     id: str
     set_id: str
     set_name: str
+    retrieval_mode: RetrievalMode | None = None
     created_at: datetime
     total_cases: int
     passed_cases: int

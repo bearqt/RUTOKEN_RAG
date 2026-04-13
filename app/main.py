@@ -16,6 +16,7 @@ from app.api.schemas import (
     IngestResponse,
     QueryRequest,
     QueryResponse,
+    RetrievalMode,
     RetrievedChunkResponse,
 )
 from app.config import settings
@@ -24,21 +25,26 @@ from app.providers.openrouter import OpenRouterProvider
 from app.services.benchmarking import BenchmarkService
 from app.services.bootstrap import bootstrap_if_needed
 from app.services.generation import GenerationService
+from app.services.graph_index import GraphIndexService
 from app.services.ingestion import IngestionService
 from app.services.pipeline import RagPipelineService
 from app.services.query_analysis import QueryAnalysisService
 from app.services.search import HybridSearchService
 
 BENCHMARK_PAGE = Path(__file__).resolve().parent / "web" / "benchmark.html"
+RAG_PIPELINE_PAGE = Path(__file__).resolve().parent / "web" / "rag_pipeline.html"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     bootstrap_if_needed(settings)
+    graph_index = GraphIndexService(settings)
+    graph_index.ensure_from_storage()
     openrouter = OpenRouterProvider(settings)
     query_analysis = QueryAnalysisService(openrouter)
     search = HybridSearchService(settings)
     generation = GenerationService(openrouter)
+    app.state.graph_index = graph_index
     app.state.query_analysis = query_analysis
     app.state.search = search
     app.state.generation = generation
@@ -76,7 +82,7 @@ def ingest() -> IngestResponse:
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     try:
-        result = app.state.pipeline.run(request.question)
+        result = app.state.pipeline.run(request.question, retrieval_mode=request.retrieval_mode)
     except ProviderConfigurationError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except FileNotFoundError as error:
@@ -86,7 +92,12 @@ def query(request: QueryRequest) -> QueryResponse:
         original_query=result.analysis.original_query,
         rewritten_query=result.analysis.rewritten_query,
         filters=result.analysis.filters,
+        query_mode=result.analysis.query_mode,
+        retrieval_mode=result.retrieval_mode,
+        routing_confidence=result.analysis.routing_confidence,
+        routing_reason=result.analysis.routing_reason,
         answer=result.answer,
+        graph_facts=result.graph_facts,
         citations=[
             CitationResponse(
                 source_url=item.source_url,
@@ -105,6 +116,7 @@ def query(request: QueryRequest) -> QueryResponse:
                 chunk_type=item.chunk.chunk_type,
                 dense_score=item.dense_score,
                 sparse_score=item.sparse_score,
+                graph_score=item.graph_score,
                 fused_score=item.fused_score,
                 rerank_score=item.rerank_score,
                 text=item.chunk.text,
@@ -119,6 +131,13 @@ def benchmark_page() -> HTMLResponse:
     if not BENCHMARK_PAGE.exists():
         raise HTTPException(status_code=404, detail="Benchmark page is missing")
     return HTMLResponse(BENCHMARK_PAGE.read_text(encoding="utf-8"))
+
+
+@app.get("/rag-pipeline", response_class=HTMLResponse, include_in_schema=False)
+def rag_pipeline_page() -> HTMLResponse:
+    if not RAG_PIPELINE_PAGE.exists():
+        raise HTTPException(status_code=404, detail="RAG pipeline page is missing")
+    return HTMLResponse(RAG_PIPELINE_PAGE.read_text(encoding="utf-8"))
 
 
 @app.get("/benchmark/sets", response_model=list[BenchmarkQuestionSetSummaryResponse])
@@ -160,9 +179,12 @@ def benchmark_update_set(set_id: str, request: BenchmarkQuestionSetInput) -> Ben
 
 
 @app.post("/benchmark/sets/{set_id}/run")
-def benchmark_run(set_id: str) -> dict:
+def benchmark_run(
+    set_id: str,
+    retrieval_mode: RetrievalMode = Query(default="hybrid"),
+) -> dict:
     try:
-        run = app.state.benchmark.run(set_id)
+        run = app.state.benchmark.run(set_id, retrieval_mode=retrieval_mode)
     except ProviderConfigurationError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except FileNotFoundError as error:

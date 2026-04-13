@@ -5,7 +5,7 @@ from pathlib import Path
 
 from app.domain.models import Chunk, SourceDocument
 from app.services.enrichment import enrich_chunk
-from app.services.text_utils import clean_inline_markdown, normalize_whitespace
+from app.services.text_utils import clean_inline_markdown, normalize_whitespace, unique_preserve
 
 
 TITLE_LINK_PATTERN = re.compile(r"^\[(?P<title>.+?)\]\((?P<url>https://dev\.rutoken\.ru/pages/viewpage\.action\?pageId=(?P<page_id>\d+))\)")
@@ -13,6 +13,8 @@ CREATED_BY_PATTERN = re.compile(
     r"Created by \[(?P<author>.+?)\]\([^)]+\), (?:(?:last modified by \[[^\]]+\]\([^)]+\) on)|last modified on) \[(?P<modified>[^\]]+)\]"
 )
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.*)$")
+TOC_LINK_PATTERN = re.compile(r"^-+\s*\d+(?:\.\d+)*\s+\[[^\]]+\]\([^)]+\)\s*$")
+PKCS11_FUNCTION_HEADING_PATTERN = re.compile(r"^##\s+(C\\?_[A-Za-z0-9_]+\(\))\s*$")
 
 
 def load_source_documents(scrape_dir: Path) -> list[SourceDocument]:
@@ -89,6 +91,10 @@ def cleanup_markdown(lines: list[str]) -> str:
             continue
         if stripped.startswith("###### ![]("):
             continue
+        if TOC_LINK_PATTERN.match(stripped):
+            continue
+        if stripped.startswith("[к содержанию"):
+            continue
         if re.match(r"^#{1,6}\s*!\[[^\]]*\]\([^)]+\)\s*$", stripped):
             continue
 
@@ -107,6 +113,25 @@ def build_chunks(
     chunks: list[Chunk] = []
     chunk_counter = 0
     previous_short_prose = ""
+
+    if _supports_pkcs11_reference_chunks(document):
+        for heading_path, text in _extract_pkcs11_reference_blocks(document.clean_markdown):
+            chunk_counter += 1
+            chunks.append(
+                enrich_chunk(
+                    document,
+                    Chunk(
+                        chunk_id=f"{document.document_id}-{chunk_counter:05d}",
+                        document_id=document.document_id,
+                        page_id=document.page_id,
+                        source_url=document.source_url,
+                        title=document.title,
+                        heading_path=heading_path,
+                        text=text,
+                        chunk_type="reference",
+                    ),
+                )
+            )
 
     for block_type, heading_path, text in blocks:
         if block_type == "prose":
@@ -306,3 +331,49 @@ def _split_code(text: str, target: int) -> list[str]:
         start = max(end - overlap, 0)
     return chunks
 
+
+def _supports_pkcs11_reference_chunks(document: SourceDocument) -> bool:
+    title = document.title.lower()
+    return title.startswith("функции ") and "pkcs" not in title or title in {
+        "Функции для работы с объектами".lower(),
+        "Функции создания подписи".lower(),
+        "Функции проверки подписи".lower(),
+        "Функции для работы с ключами".lower(),
+    }
+
+
+def _extract_pkcs11_reference_blocks(markdown: str) -> list[tuple[list[str], str]]:
+    lines = markdown.splitlines()
+    blocks: list[tuple[list[str], str]] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        match = PKCS11_FUNCTION_HEADING_PATTERN.match(line)
+        if not match:
+            index += 1
+            continue
+
+        function_name = clean_inline_markdown(match.group(1))
+        block_lines = [lines[index]]
+        index += 1
+        while index < len(lines):
+            next_line = lines[index].strip()
+            if PKCS11_FUNCTION_HEADING_PATTERN.match(next_line):
+                break
+            block_lines.append(lines[index])
+            index += 1
+
+        block_text = normalize_whitespace("\n".join(line for line in block_lines if not line.strip().startswith("[к содержанию")))
+        section_names = [
+            clean_inline_markdown(heading_match.group(2))
+            for heading_match in (
+                HEADING_PATTERN.match(item.strip())
+                for item in block_lines
+            )
+            if heading_match and len(heading_match.group(1)) == 3
+        ]
+        summary_prefix = f"Функция PKCS#11: {function_name}"
+        if section_names:
+            summary_prefix = f"{summary_prefix}\nРазделы: {'; '.join(unique_preserve(section_names))}"
+        blocks.append(([function_name], f"{summary_prefix}\n\n{block_text}".strip()))
+    return blocks

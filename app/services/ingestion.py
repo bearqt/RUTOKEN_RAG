@@ -8,6 +8,7 @@ from app.domain.models import Chunk
 from app.providers.gigachat import GigaChatEmbeddingsProvider
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.qdrant_store import QdrantStore
+from app.services.graph_index import GraphIndexService
 from app.services.parsing import build_chunks, load_source_documents
 from app.services.storage import save_chunks
 
@@ -24,6 +25,7 @@ class IngestionService:
         self._settings = settings
         self._embeddings = GigaChatEmbeddingsProvider(settings)
         self._qdrant = QdrantStore(settings)
+        self._graph_index = GraphIndexService(settings)
 
     def ingest(self) -> IngestionResult:
         documents = load_source_documents(self._settings.scrape_dir)
@@ -47,6 +49,7 @@ class IngestionService:
         save_chunks(self._settings.chunks_path, chunks)
         bm25 = BM25Index(chunks)
         bm25.save(self._settings.bm25_path)
+        self._graph_index.rebuild(chunks)
 
         manifest = {
             "documents": len(documents),
@@ -65,4 +68,3 @@ class IngestionService:
             batch = chunks[index : index + batch_size]
             vectors.extend(self._embeddings.embed_texts([chunk.text for chunk in batch]))
         return vectors
-

@@ -182,7 +182,7 @@
       color: var(--muted);
     }
 
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -325,6 +325,15 @@
       <div class="hero-meta">
         <button id="newSetButton">Новый набор вопросов</button>
         <button id="refreshButton" class="secondary">Обновить данные</button>
+        <label>
+          Retrieval mode
+          <select id="runModeSelect">
+            <option value="hybrid">hybrid</option>
+            <option value="dense">dense</option>
+            <option value="bm25">bm25</option>
+            <option value="graph">graph</option>
+          </select>
+        </label>
         <div class="status" id="status">Загрузка...</div>
       </div>
     </section>
@@ -394,6 +403,7 @@
     const saveSetButton = document.getElementById("saveSetButton");
     const runSetButton = document.getElementById("runSetButton");
     const addQuestionButton = document.getElementById("addQuestionButton");
+    const runModeSelect = document.getElementById("runModeSelect");
 
     let questionSets = [];
     let selectedSetId = null;
@@ -403,6 +413,11 @@
     function formatPercent(value) {
       if (value === null || value === undefined) return "n/a";
       return `${(Number(value) * 100).toFixed(1)}%`;
+    }
+
+    function formatScore(value) {
+      if (value === null || value === undefined) return "n/a";
+      return Number(value).toFixed(4);
     }
 
     function formatLatency(value) {
@@ -593,6 +608,7 @@
         card.innerHTML = `
           <div class="item-title">${escapeHtml(item.created_at)}</div>
           <div class="item-meta">
+            Mode: ${escapeHtml(item.retrieval_mode || "hybrid")}<br />
             Pass rate: ${formatPercent(item.pass_rate)}<br />
             Passed: ${item.passed_cases}/${item.total_cases}<br />
             Avg latency: ${formatLatency(item.average_latency_ms)}
@@ -610,7 +626,13 @@
       }
       runDetailEl.hidden = false;
       const summary = run.summary || {};
+      const retrievalMetrics = summary.retrieval_metrics || {};
+      const citationAccuracy = summary.metrics?.citations?.rate;
       runSummaryGridEl.innerHTML = `
+        <div class="metric">
+          <div class="metric-label">Retrieval mode</div>
+          <div class="metric-value">${escapeHtml(run.retrieval_mode || summary.retrieval_mode || "hybrid")}</div>
+        </div>
         <div class="metric">
           <div class="metric-label">Pass rate</div>
           <div class="metric-value">${formatPercent(run.pass_rate)}</div>
@@ -622,6 +644,22 @@
         <div class="metric">
           <div class="metric-label">Average score</div>
           <div class="metric-value">${formatPercent(run.average_score)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Citation accuracy</div>
+          <div class="metric-value">${formatPercent(citationAccuracy)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Recall@5</div>
+          <div class="metric-value">${formatScore(retrievalMetrics.recall_at_5)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">MRR@10</div>
+          <div class="metric-value">${formatScore(retrievalMetrics.mrr_at_10)}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">nDCG@10</div>
+          <div class="metric-value">${formatScore(retrievalMetrics.ndcg_at_10)}</div>
         </div>
         <div class="metric">
           <div class="metric-label">P95 latency</div>
@@ -641,10 +679,12 @@
             Score ${formatPercent(item.score)} | Latency ${formatLatency(item.actual.latency_ms)}
           </div>
           <pre>${escapeHtml(JSON.stringify({
+            retrieval_metrics: item.retrieval_metrics,
             checks: item.checks,
             diagnostics: item.diagnostics,
             answer: item.actual.answer,
             citations: item.actual.citations,
+            retrieval_ranked_source_urls_top10: item.actual.retrieval_ranked_source_urls_top10,
           }, null, 2))}</pre>
         `;
         runCasesEl.appendChild(card);
@@ -778,7 +818,8 @@
       if (!selectedSetId) {
         throw new Error("Сначала сохрани набор вопросов");
       }
-      const response = await fetch(`/benchmark/sets/${selectedSetId}/run`, { method: "POST" });
+      const mode = runModeSelect.value || "hybrid";
+      const response = await fetch(`/benchmark/sets/${selectedSetId}/run?retrieval_mode=${encodeURIComponent(mode)}`, { method: "POST" });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || "Не удалось запустить benchmark");

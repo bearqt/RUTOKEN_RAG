@@ -39,6 +39,10 @@ class QueryAnalysis:
     filters: dict[str, list[str] | str]
     intent: str
     needs_code: bool
+    entities: dict[str, list[str]] = field(default_factory=dict)
+    query_mode: str = "classic"
+    routing_confidence: float | None = None
+    routing_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -46,8 +50,17 @@ class RetrievedChunk:
     chunk: Chunk
     dense_score: float = 0.0
     sparse_score: float = 0.0
+    graph_score: float = 0.0
     fused_score: float = 0.0
     rerank_score: float = 0.0
+
+
+@dataclass(slots=True)
+class SearchResult:
+    chunks: list[RetrievedChunk]
+    ranked_chunks: list[RetrievedChunk] = field(default_factory=list)
+    retrieval_mode: str = "hybrid"
+    graph_facts: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -64,3 +77,6 @@ class PipelineResult:
     answer: str
     citations: list[Citation]
     retrieved_chunks: list[RetrievedChunk]
+    ranked_chunks: list[RetrievedChunk] = field(default_factory=list)
+    retrieval_mode: str = "hybrid"
+    graph_facts: list[str] = field(default_factory=list)
