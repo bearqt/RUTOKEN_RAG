@@ -5,6 +5,7 @@ import json
 
 from app.config import settings
 from app.providers.openrouter import OpenRouterProvider
+from app.services.bm25_baseline import BM25BaselineService
 from app.services.benchmarking import BenchmarkService
 from app.services.bootstrap import bootstrap_if_needed
 from app.services.generation import GenerationService
@@ -20,17 +21,20 @@ def main() -> None:
         "--retrieval-mode",
         dest="retrieval_mode",
         default="hybrid",
-        choices=("dense", "bm25", "graph", "hybrid"),
+        choices=("dense", "bm25", "bm25_baseline", "graph", "hybrid"),
     )
     args = parser.parse_args()
 
     bootstrap_if_needed(settings)
     openrouter = OpenRouterProvider(settings)
-    pipeline = RagPipelineService(
-        QueryAnalysisService(openrouter),
-        HybridSearchService(settings),
-        GenerationService(openrouter),
-    )
+    if args.retrieval_mode == "bm25_baseline":
+        pipeline = BM25BaselineService(settings)
+    else:
+        pipeline = RagPipelineService(
+            QueryAnalysisService(openrouter),
+            HybridSearchService(settings),
+            GenerationService(openrouter),
+        )
     benchmark = BenchmarkService(settings, pipeline)
     benchmark.initialize()
     set_id = args.set_id

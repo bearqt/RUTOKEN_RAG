@@ -22,6 +22,7 @@ from app.api.schemas import (
 from app.config import settings
 from app.providers.gigachat import GigaChatEmbeddingsProvider, ProviderConfigurationError
 from app.providers.openrouter import OpenRouterProvider
+from app.services.bm25_baseline import BM25BaselineService
 from app.services.benchmarking import BenchmarkService
 from app.services.bootstrap import bootstrap_if_needed
 from app.services.generation import GenerationService
@@ -48,10 +49,13 @@ async def lifespan(app: FastAPI):
     app.state.query_analysis = query_analysis
     app.state.search = search
     app.state.generation = generation
+    app.state.bm25_baseline = BM25BaselineService(settings)
     app.state.ingestion = IngestionService(settings)
     app.state.pipeline = RagPipelineService(query_analysis, search, generation)
     app.state.benchmark = BenchmarkService(settings, app.state.pipeline)
     app.state.benchmark.initialize()
+    app.state.benchmark_baseline = BenchmarkService(settings, app.state.bm25_baseline)
+    app.state.benchmark_baseline.initialize()
     yield
 
 
@@ -76,13 +80,17 @@ def ingest() -> IngestResponse:
     except ProviderConfigurationError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     app.state.search.refresh()
+    app.state.bm25_baseline.refresh()
     return IngestResponse(documents=result.documents, chunks=result.chunks, vector_size=result.vector_size)
 
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     try:
-        result = app.state.pipeline.run(request.question, retrieval_mode=request.retrieval_mode)
+        if request.retrieval_mode == "bm25_baseline":
+            result = app.state.bm25_baseline.run(request.question, retrieval_mode=request.retrieval_mode)
+        else:
+            result = app.state.pipeline.run(request.question, retrieval_mode=request.retrieval_mode)
     except ProviderConfigurationError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except FileNotFoundError as error:
@@ -184,7 +192,12 @@ def benchmark_run(
     retrieval_mode: RetrievalMode = Query(default="hybrid"),
 ) -> dict:
     try:
-        run = app.state.benchmark.run(set_id, retrieval_mode=retrieval_mode)
+        benchmark_service = (
+            app.state.benchmark_baseline
+            if retrieval_mode == "bm25_baseline"
+            else app.state.benchmark
+        )
+        run = benchmark_service.run(set_id, retrieval_mode=retrieval_mode)
     except ProviderConfigurationError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     except FileNotFoundError as error:

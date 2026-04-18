@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-RetrievalMode = Literal["dense", "bm25", "graph", "hybrid"]
+RetrievalMode = Literal["dense", "bm25", "bm25_baseline", "graph", "hybrid"]
 
 
 class QueryRequest(BaseModel):
