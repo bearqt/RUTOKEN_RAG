@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from app.config import Settings
 from app.domain.models import Chunk, RetrievedChunk, SearchResult
-from app.providers.gigachat import GigaChatEmbeddingsProvider
+from app.providers.embeddings import OpenRouterEmbeddingsProvider
 from app.providers.reranker import Reranker
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.qdrant_store import QdrantStore
@@ -25,7 +25,7 @@ class SearchArtifacts:
 class HybridSearchService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._embeddings = GigaChatEmbeddingsProvider(settings)
+        self._embeddings = OpenRouterEmbeddingsProvider(settings)
         self._qdrant = QdrantStore(settings)
         self._reranker = Reranker(settings)
         self._graph = GraphSearchService(settings)
@@ -53,11 +53,17 @@ class HybridSearchService:
 
         dense_hits: list[tuple[str, float]] = []
         sparse_hits = []
-        graph_result = self._graph.search(
-            query_entities,
-            effective_graph_query_mode,
-            self._settings.graph_candidate_count,
-        ) if retrieval_mode in {"graph", "hybrid"} else self._graph.search({}, "classic", 0)
+        graph_result = (
+            self._graph.search(
+                query_entities,
+                effective_graph_query_mode,
+                self._settings.graph_candidate_count,
+                query_text=rewritten_query,
+                filters=filters,
+            )
+            if retrieval_mode in {"graph", "hybrid"}
+            else self._graph.search({}, "classic", 0)
+        )
 
         if retrieval_mode in {"dense", "hybrid"}:
             dense_vector = self._embeddings.embed_query(rewritten_query)
@@ -88,9 +94,13 @@ class HybridSearchService:
             if chunk is None:
                 continue
             retrieved.setdefault(hit.chunk_id, RetrievedChunk(chunk=chunk))
-            retrieved[hit.chunk_id].graph_score = hit.score
-            retrieved[hit.chunk_id].fused_score += _graph_rank_score(rank, effective_graph_query_mode)
-            retrieved[hit.chunk_id].fused_score += hit.score * self._settings.graph_fusion_weight
+            item = retrieved[hit.chunk_id]
+            item.graph_score = hit.score
+            item.graph_entity_score = hit.entity_score
+            item.graph_relation_score = hit.relation_score
+            item.graph_feature_score = hit.feature_score
+            item.fused_score += _graph_rank_score(rank, effective_graph_query_mode)
+            item.fused_score += hit.score * self._settings.graph_fusion_weight
 
         if retrieval_mode == "hybrid":
             for item in retrieved.values():
@@ -108,8 +118,9 @@ class HybridSearchService:
         rerank_scores = self._reranker.rerank(rewritten_query, [item.chunk.text for item in candidates])
         for item, score in zip(candidates, rerank_scores, strict=False):
             item.rerank_score = score
+            item.final_score = score + self._settings.graph_final_fusion_weight * item.fused_score
 
-        ranked_chunks = sorted(candidates, key=lambda item: item.rerank_score, reverse=True)
+        ranked_chunks = sorted(candidates, key=lambda item: item.final_score, reverse=True)
         return SearchResult(
             chunks=ranked_chunks[: self._settings.final_context_count],
             ranked_chunks=ranked_chunks,
@@ -143,6 +154,9 @@ def _entity_overlap_boost(metadata: dict, query_entities: dict[str, list[str]]) 
         "components": 0.14,
         "products": 0.1,
         "interfaces": 0.08,
+        "pkcs11_objects": 0.1,
+        "pkcs11_mechanisms": 0.1,
+        "error_codes": 0.12,
         "os_tags": 0.05,
         "language_tags": 0.05,
     }
@@ -165,18 +179,18 @@ def _is_pkcs11_reference_query(rewritten_query: str, query_entities: dict[str, l
         return False
     query_lower = rewritten_query.lower()
     markers = (
-        "функц",
-        "вызов",
-        "синтаксис",
-        "параметр",
-        "назначение",
-        "примечание",
-        "возвращаем",
-        "пример",
-        "объект",
-        "подпис",
-        "проверк",
-        "ключ",
+        "С„СѓРЅРєС†",
+        "РІС‹Р·РѕРІ",
+        "СЃРёРЅС‚Р°РєСЃРёСЃ",
+        "РїР°СЂР°РјРµС‚СЂ",
+        "РЅР°Р·РЅР°С‡РµРЅРёРµ",
+        "РїСЂРёРјРµС‡Р°РЅРёРµ",
+        "РІРѕР·РІСЂР°С‰Р°РµРј",
+        "РїСЂРёРјРµСЂ",
+        "РѕР±СЉРµРєС‚",
+        "РїРѕРґРїРёСЃ",
+        "РїСЂРѕРІРµСЂРє",
+        "РєР»СЋС‡",
         "reference",
     )
     return any(marker in query_lower for marker in markers)
@@ -218,7 +232,7 @@ def _pkcs11_reference_boost(chunk: Chunk, query_entities: dict[str, list[str]], 
     heading_lower = heading_text.lower()
     query_lower = rewritten_query.lower()
 
-    if title_lower.startswith("функции "):
+    if title_lower.startswith("С„СѓРЅРєС†РёРё "):
         boost += 0.08
 
     expected_symbols = query_entities.get("api_symbols", [])
@@ -229,8 +243,8 @@ def _pkcs11_reference_boost(chunk: Chunk, query_entities: dict[str, list[str]], 
             elif symbol in chunk.text:
                 boost += 0.2
 
-    if any(term in query_lower for term in ("какие разделы", "описание функции", "какие секции")):
-        section_terms = ("синтаксис", "параметры", "назначение", "примечание", "возвращаемые значения", "пример")
+    if any(term in query_lower for term in ("РєР°РєРёРµ СЂР°Р·РґРµР»С‹", "РѕРїРёСЃР°РЅРёРµ С„СѓРЅРєС†РёРё", "РєР°РєРёРµ СЃРµРєС†РёРё")):
+        section_terms = ("СЃРёРЅС‚Р°РєСЃРёСЃ", "РїР°СЂР°РјРµС‚СЂС‹", "РЅР°Р·РЅР°С‡РµРЅРёРµ", "РїСЂРёРјРµС‡Р°РЅРёРµ", "РІРѕР·РІСЂР°С‰Р°РµРјС‹Рµ Р·РЅР°С‡РµРЅРёСЏ", "РїСЂРёРјРµСЂ")
         present = sum(1 for term in section_terms if term in chunk.text.lower())
         boost += min(present, 6) * 0.03
 

@@ -51,8 +51,12 @@ class RetrievedChunk:
     dense_score: float = 0.0
     sparse_score: float = 0.0
     graph_score: float = 0.0
+    graph_entity_score: float = 0.0
+    graph_relation_score: float = 0.0
+    graph_feature_score: float = 0.0
     fused_score: float = 0.0
     rerank_score: float = 0.0
+    final_score: float = 0.0
 
 
 @dataclass(slots=True)

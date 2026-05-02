@@ -20,7 +20,7 @@ from app.api.schemas import (
     RetrievedChunkResponse,
 )
 from app.config import settings
-from app.providers.gigachat import GigaChatEmbeddingsProvider, ProviderConfigurationError
+from app.providers.embeddings import OpenRouterEmbeddingsProvider, ProviderConfigurationError
 from app.providers.openrouter import OpenRouterProvider
 from app.services.bm25_baseline import BM25BaselineService
 from app.services.benchmarking import BenchmarkService
@@ -69,7 +69,7 @@ def health() -> HealthResponse:
         chunks_indexed=settings.chunks_path.exists(),
         manifest_exists=settings.manifest_path.exists(),
         openrouter_configured=OpenRouterProvider(settings).is_configured(),
-        gigachat_configured=GigaChatEmbeddingsProvider(settings).is_configured(),
+        gigachat_configured=OpenRouterEmbeddingsProvider(settings).is_configured(),
     )
 
 

@@ -2,25 +2,32 @@ from __future__ import annotations
 
 import json
 
-from openrouter import OpenRouter
+try:
+    from openrouter import OpenRouter
+except ModuleNotFoundError:  # pragma: no cover - optional runtime dependency
+    OpenRouter = None
 
 from app.config import Settings
-from app.providers.gigachat import ProviderConfigurationError
+from app.providers.embeddings import ProviderConfigurationError
 
 
 class OpenRouterProvider:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client = OpenRouter(
-            api_key=settings.openrouter_api_key,
-            http_referer=settings.openrouter_site_url,
-            x_title=settings.openrouter_app_name,
-            server_url=settings.openrouter_base_url,
-            timeout_ms=60_000,
+        self._client = (
+            OpenRouter(
+                api_key=settings.openrouter_api_key,
+                http_referer=settings.openrouter_site_url,
+                x_title=settings.openrouter_app_name,
+                server_url=settings.openrouter_base_url,
+                timeout_ms=60_000,
+            )
+            if OpenRouter is not None
+            else None
         )
 
     def is_configured(self) -> bool:
-        return bool(self._settings.openrouter_api_key and self._settings.openrouter_model)
+        return bool(self._client and self._settings.openrouter_api_key and self._settings.openrouter_model)
 
     def complete(self, system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:
         if not self.is_configured():

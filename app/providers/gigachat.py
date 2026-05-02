@@ -1,7 +1,13 @@
 from __future__ import annotations
 
-from gigachat import GigaChat
-from gigachat.exceptions import RequestEntityTooLargeError
+try:
+    from gigachat import GigaChat
+    from gigachat.exceptions import RequestEntityTooLargeError
+except ModuleNotFoundError:  # pragma: no cover - optional runtime dependency
+    GigaChat = None
+
+    class RequestEntityTooLargeError(Exception):
+        pass
 
 from app.config import Settings
 
@@ -28,6 +34,8 @@ class GigaChatEmbeddingsProvider:
         return self.embed_texts([text])[0]
 
     def _get_client(self) -> GigaChat:
+        if GigaChat is None:
+            raise ProviderConfigurationError("gigachat package is not installed")
         if self._client is None:
             self._client = GigaChat(
                 credentials=self._settings.gigachat_auth_key,

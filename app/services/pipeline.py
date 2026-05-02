@@ -20,7 +20,7 @@ class RagPipelineService:
     def run(self, question: str, retrieval_mode: str = "hybrid") -> PipelineResult:
         analysis = self._query_analysis.analyze(question)
         search_result = self._search.search(
-            analysis.rewritten_query,
+            analysis.original_query,
             analysis.filters,
             analysis.entities,
             analysis.query_mode,

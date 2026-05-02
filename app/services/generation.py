@@ -52,7 +52,6 @@ class GenerationService:
         context_text = "\n\n".join(context_blocks)
         prompt = (
             f"Запрос пользователя: {analysis.original_query}\n"
-            f"Переписанный запрос: {analysis.rewritten_query}\n"
             f"Режим поиска: {analysis.query_mode}\n"
             f"Фильтры: {analysis.filters}\n\n"
             f"{graph_section}"
@@ -75,7 +74,7 @@ def _build_fallback_answer(
     graph_facts: list[str],
 ) -> str:
     lines = [
-        f"Переписанный запрос: {analysis.rewritten_query}",
+        f"Запрос пользователя: {analysis.original_query}",
         f"Режим поиска: {analysis.query_mode}",
         "",
     ]

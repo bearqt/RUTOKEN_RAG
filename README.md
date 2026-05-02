@@ -2,7 +2,7 @@
 
 Python RAG-проект для базы знаний `dev.rutoken.ru` с гибридным поиском:
 
-- dense retrieval через embedding-модель GigaChat;
+- dense retrieval через embedding-модель OpenRouter;
 - sparse retrieval через BM25 для точных совпадений по `CKR_*`, `CKA_*`, `C_*`, `rtPKCS11*`;
 - rerank через `BAAI/bge-reranker-v2-m3`;
 - generation и query rewriting через OpenRouter.
@@ -36,11 +36,9 @@ Python RAG-проект для базы знаний `dev.rutoken.ru` с гиб�
 ## Настройка
 
 1. Скопируй `.env.example` в `.env`.
-2. Заполни `GIGACHAT_AUTH_KEY`.
-3. Заполни `OPENROUTER_API_KEY`.
-4. Укажи `OPENROUTER_MODEL`, например `openai/gpt-4o-mini` или любой другой model id из OpenRouter.
-
-`GIGACHAT_AUTH_KEY` — это base64-ключ для OAuth, который используется при вызове `POST /api/v2/oauth`.
+2. Заполни `OPENROUTER_API_KEY`.
+3. Укажи `OPENROUTER_MODEL`, например `deepseek/deepseek-v3.2` или любой другой chat model id из OpenRouter.
+4. Укажи `OPENROUTER_EMBEDDING_MODEL`, например `openai/text-embedding-3-small`.
 
 ## Локальный запуск
 

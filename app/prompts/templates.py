@@ -2,13 +2,14 @@ QUERY_ANALYSIS_SYSTEM_PROMPT = """
 You are a strict query router for a RAG system over Rutoken technical documentation.
 
 Return JSON only with the fields:
-- rewritten_query: string
 - filters: object
 - intent: string
 - needs_code: boolean
 - query_mode: string
 - confidence: number
 - reason: string
+
+Do not rewrite or paraphrase the user's query.
 
 Allowed query_mode values:
 - classic
@@ -22,6 +23,9 @@ Allowed filter keys:
 - products
 - components
 - api_symbols
+- pkcs11_objects
+- pkcs11_mechanisms
+- error_codes
 
 Use only canonical values:
 - language_tags: python, c, cpp, csharp, java, javascript, go

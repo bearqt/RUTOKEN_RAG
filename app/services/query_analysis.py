@@ -5,7 +5,7 @@ import json
 from app.domain.models import QueryAnalysis
 from app.prompts.templates import QUERY_ANALYSIS_SYSTEM_PROMPT
 from app.providers.openrouter import OpenRouterProvider
-from app.services.ner import augment_query_with_entities, extract_named_entities, merge_named_entities
+from app.services.ner import extract_named_entities, merge_named_entities
 from app.services.text_utils import unique_preserve
 
 
@@ -138,7 +138,7 @@ class QueryAnalysisService:
         if forced_mode is not None:
             return _build_analysis(
                 query=query,
-                rewritten_query=_rewrite_with_pkcs11_hints(query, extracted_entities, query),
+                rewritten_query=query,
                 filters=_merge_filters({}, extracted_entities),
                 entities=extracted_entities,
                 intent=_forced_intent(query, forced_mode),
@@ -167,11 +167,6 @@ class QueryAnalysisService:
         except Exception:
             return None
 
-        rewritten_query = _rewrite_with_pkcs11_hints(
-            str(payload.get("rewritten_query") or query),
-            entities,
-            query,
-        )
         filters = _merge_filters(payload.get("filters", {}), entities)
         intent = str(payload.get("intent") or "general").strip() or "general"
         needs_code = bool(payload.get("needs_code", False))
@@ -181,7 +176,7 @@ class QueryAnalysisService:
 
         query_mode = _resolve_llm_query_mode(
             original_query=query,
-            rewritten_query=rewritten_query,
+            rewritten_query=query,
             entities=entities,
             router_mode=router_mode,
             confidence=confidence,
@@ -189,7 +184,7 @@ class QueryAnalysisService:
 
         return _build_analysis(
             query=query,
-            rewritten_query=rewritten_query,
+            rewritten_query=query,
             filters=filters,
             entities=entities,
             intent=intent,
@@ -201,15 +196,14 @@ class QueryAnalysisService:
 
     def _heuristic(self, query: str) -> QueryAnalysis:
         entities = _enrich_entities(query, extract_named_entities(query))
-        rewritten = _rewrite_with_pkcs11_hints(query, entities, query)
         return _build_analysis(
             query=query,
-            rewritten_query=rewritten,
+            rewritten_query=query,
             filters=_merge_filters({}, entities),
             entities=entities,
             intent="general",
             needs_code=_needs_code(query),
-            query_mode=_fallback_query_mode(query, rewritten, entities),
+            query_mode=_fallback_query_mode(query, query, entities),
             routing_confidence=None,
             routing_reason="heuristic_fallback",
         )
@@ -241,7 +235,17 @@ def _build_analysis(
 
 
 def _normalize_filter_keys(filters: dict) -> dict[str, list[str] | str]:
-    allowed = {"language_tags", "os_tags", "interfaces", "products", "components", "api_symbols"}
+    allowed = {
+        "language_tags",
+        "os_tags",
+        "interfaces",
+        "products",
+        "components",
+        "api_symbols",
+        "pkcs11_objects",
+        "pkcs11_mechanisms",
+        "error_codes",
+    }
     result: dict[str, list[str] | str] = {}
     for key, value in filters.items():
         if key not in allowed:
@@ -261,7 +265,17 @@ def _merge_filters(
     extracted_filters = {
         key: value
         for key, value in extracted_entities.items()
-        if key in {"language_tags", "os_tags", "interfaces", "products", "components", "api_symbols"}
+        if key in {
+            "language_tags",
+            "os_tags",
+            "interfaces",
+            "products",
+            "components",
+            "api_symbols",
+            "pkcs11_objects",
+            "pkcs11_mechanisms",
+            "error_codes",
+        }
     }
     merged = merge_named_entities(
         {key: value for key, value in normalized.items() if isinstance(value, list)},
@@ -296,6 +310,7 @@ def _rewrite_with_pkcs11_hints(
     entities: dict[str, list[str]],
     original_query: str,
 ) -> str:
+    return rewritten_query
     rewritten = augment_query_with_entities(rewritten_query, entities)
     query_lower = original_query.lower()
     additions: list[str] = []

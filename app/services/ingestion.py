@@ -5,10 +5,11 @@ from dataclasses import dataclass
 
 from app.config import Settings
 from app.domain.models import Chunk
-from app.providers.gigachat import GigaChatEmbeddingsProvider
+from app.providers.embeddings import OpenRouterEmbeddingsProvider
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.qdrant_store import QdrantStore
 from app.services.graph_index import GraphIndexService
+from app.services.llm_enrichment import OfflineGraphEnrichmentService
 from app.services.parsing import build_chunks, load_source_documents
 from app.services.storage import save_chunks
 
@@ -23,9 +24,10 @@ class IngestionResult:
 class IngestionService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._embeddings = GigaChatEmbeddingsProvider(settings)
+        self._embeddings = OpenRouterEmbeddingsProvider(settings)
         self._qdrant = QdrantStore(settings)
         self._graph_index = GraphIndexService(settings)
+        self._graph_enrichment = OfflineGraphEnrichmentService(settings)
 
     def ingest(self) -> IngestionResult:
         documents = load_source_documents(self._settings.scrape_dir)
@@ -40,15 +42,18 @@ class IngestionService:
                 )
             )
 
+        chunks = self._graph_enrichment.enrich_chunks(chunks)
+        save_chunks(self._settings.chunks_path, chunks)
+
+        bm25 = BM25Index(chunks)
+        bm25.save(self._settings.bm25_path)
+
         vectors = self._embed_chunks(chunks)
         vector_size = len(vectors[0]) if vectors else 0
         if vector_size:
             self._qdrant.ensure_collection(vector_size)
             self._qdrant.upsert_chunks(chunks, vectors)
 
-        save_chunks(self._settings.chunks_path, chunks)
-        bm25 = BM25Index(chunks)
-        bm25.save(self._settings.bm25_path)
         self._graph_index.rebuild(chunks)
 
         manifest = {

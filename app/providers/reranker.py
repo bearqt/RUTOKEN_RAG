@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from sentence_transformers import CrossEncoder
+try:
+    from sentence_transformers import CrossEncoder
+except ModuleNotFoundError:  # pragma: no cover - optional runtime dependency
+    CrossEncoder = None
 
 from app.config import Settings
 
@@ -13,6 +16,8 @@ class Reranker:
     def rerank(self, query: str, documents: list[str]) -> list[float]:
         if not documents:
             return []
+        if CrossEncoder is None:
+            raise RuntimeError("sentence_transformers package is not installed")
         if self._model is None:
             self._model = CrossEncoder(self._settings.reranker_model)
         results = self._model.rank(query, documents)
