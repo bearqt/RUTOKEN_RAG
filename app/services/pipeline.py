@@ -17,14 +17,13 @@ class RagPipelineService:
         self._search = search
         self._generation = generation
 
-    def run(self, question: str, retrieval_mode: str = "hybrid") -> PipelineResult:
+    def run(self, question: str) -> PipelineResult:
         analysis = self._query_analysis.analyze(question)
         search_result = self._search.search(
             analysis.original_query,
             analysis.filters,
             analysis.entities,
             analysis.query_mode,
-            retrieval_mode,
         )
         answer, citations = self._generation.generate(analysis, search_result.chunks, search_result.graph_facts)
         return PipelineResult(

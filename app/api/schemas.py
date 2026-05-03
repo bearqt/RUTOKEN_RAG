@@ -3,14 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-RetrievalMode = Literal["dense", "bm25", "bm25_baseline", "graph", "hybrid"]
+RetrievalMode = Literal["hybrid"]
 
 
 class QueryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     question: str = Field(min_length=3)
-    retrieval_mode: RetrievalMode = "hybrid"
 
 
 class CitationResponse(BaseModel):
@@ -106,7 +107,7 @@ class BenchmarkRunSummaryResponse(BaseModel):
     id: str
     set_id: str
     set_name: str
-    retrieval_mode: RetrievalMode | None = None
+    retrieval_mode: str | None = None
     created_at: datetime
     total_cases: int
     passed_cases: int

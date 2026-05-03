@@ -325,15 +325,6 @@
       <div class="hero-meta">
         <button id="newSetButton">Новый набор вопросов</button>
         <button id="refreshButton" class="secondary">Обновить данные</button>
-        <label>
-          Retrieval mode
-          <select id="runModeSelect">
-            <option value="hybrid">hybrid</option>
-            <option value="dense">dense</option>
-            <option value="bm25">bm25</option>
-            <option value="graph">graph</option>
-          </select>
-        </label>
         <div class="status" id="status">Загрузка...</div>
       </div>
     </section>
@@ -403,7 +394,6 @@
     const saveSetButton = document.getElementById("saveSetButton");
     const runSetButton = document.getElementById("runSetButton");
     const addQuestionButton = document.getElementById("addQuestionButton");
-    const runModeSelect = document.getElementById("runModeSelect");
 
     let questionSets = [];
     let selectedSetId = null;
@@ -818,8 +808,7 @@
       if (!selectedSetId) {
         throw new Error("Сначала сохрани набор вопросов");
       }
-      const mode = runModeSelect.value || "hybrid";
-      const response = await fetch(`/benchmark/sets/${selectedSetId}/run?retrieval_mode=${encodeURIComponent(mode)}`, { method: "POST" });
+      const response = await fetch(`/benchmark/sets/${selectedSetId}/run`, { method: "POST" });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || "Не удалось запустить benchmark");

@@ -104,20 +104,19 @@ class BenchmarkService:
     def get_run(self, run_id: str) -> dict | None:
         return self._repository.get_run(run_id)
 
-    def run(self, set_id: str, retrieval_mode: str = "hybrid") -> dict:
+    def run(self, set_id: str) -> dict:
         question_set = self._repository.get_question_set(set_id)
         if question_set is None:
             raise FileNotFoundError(f"Question set is missing: {set_id}")
         cases = [BenchmarkCase.from_record(item) for item in question_set["questions"]]
         if not cases:
             raise ValueError("Question set does not contain any questions")
-        results = [self._run_case(case, retrieval_mode) for case in cases]
-        normalized_retrieval_mode = results[0]["actual"]["retrieval_mode"] if results else retrieval_mode
-        summary = self._build_summary(results, normalized_retrieval_mode)
+        results = [self._run_case(case) for case in cases]
+        summary = self._build_summary(results, "hybrid")
         return self._repository.save_run(
             set_id=set_id,
             set_name=question_set["name"],
-            retrieval_mode=normalized_retrieval_mode,
+            retrieval_mode="hybrid",
             summary=summary,
             cases=results,
         )
@@ -131,9 +130,9 @@ class BenchmarkService:
             "questions": question_set.get("questions", []),
         }
 
-    def _run_case(self, case: BenchmarkCase, retrieval_mode: str) -> dict:
+    def _run_case(self, case: BenchmarkCase) -> dict:
         started_at = time.perf_counter()
-        pipeline_result = self._pipeline.run(case.question, retrieval_mode=retrieval_mode)
+        pipeline_result = self._pipeline.run(case.question)
         latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
         return self._evaluate_case(case, pipeline_result, latency_ms)
 

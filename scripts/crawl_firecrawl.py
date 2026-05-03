@@ -58,22 +58,6 @@ def main() -> int:
         allow_external_links=False,
         ignore_query_parameters=False,
         regex_on_full_url=True,
-        include_paths=[
-            r"^https://dev\.rutoken\.ru/$",
-            r"^https://dev\.rutoken\.ru/pages/viewpage\.action\?pageId=\d+.*",
-            r"^https://dev\.rutoken\.ru/display/.*",
-        ],
-        exclude_paths=[
-            r"^https://dev\.rutoken\.ru/login\.action.*",
-            r"^https://dev\.rutoken\.ru/pages/diffpages.*",
-            r"^https://dev\.rutoken\.ru/pages/editpage.*",
-            r"^https://dev\.rutoken\.ru/pages/createpage.*",
-            r"^https://dev\.rutoken\.ru/pages/viewpreviousversions.*",
-            r"^https://dev\.rutoken\.ru/download/.*",
-            r"^https://dev\.rutoken\.ru/rest/.*",
-            r"^https://dev\.rutoken\.ru/plugins/.*",
-            r"^https://dev\.rutoken\.ru/users/.*",
-        ],
         scrape_options={
             "formats": ["markdown"],
             "only_main_content": True,

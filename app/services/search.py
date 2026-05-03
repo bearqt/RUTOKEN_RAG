@@ -13,9 +13,6 @@ from app.services.graph_search import GraphSearchService
 from app.services.ner import extract_named_entities
 from app.services.storage import load_chunks
 
-RETRIEVAL_MODE_VALUES = {"dense", "bm25", "graph", "hybrid"}
-
-
 @dataclass(slots=True)
 class SearchArtifacts:
     chunks_by_id: dict[str, Chunk]
@@ -41,36 +38,24 @@ class HybridSearchService:
         filters: dict[str, list[str] | str],
         query_entities: dict[str, list[str]] | None = None,
         query_mode: str = "classic",
-        retrieval_mode: str = "hybrid",
     ) -> SearchResult:
-        retrieval_mode = normalize_retrieval_mode(retrieval_mode)
         if not self._artifacts.chunks_by_id:
-            return SearchResult(chunks=[], ranked_chunks=[], retrieval_mode=retrieval_mode, graph_facts=[])
+            return SearchResult(chunks=[], ranked_chunks=[], retrieval_mode="hybrid", graph_facts=[])
 
         query_entities = query_entities or extract_named_entities(rewritten_query)
         pkcs11_reference_mode = _is_pkcs11_reference_query(rewritten_query, query_entities)
-        effective_graph_query_mode = _effective_graph_query_mode(query_mode, retrieval_mode)
+        effective_graph_query_mode = _effective_graph_query_mode(query_mode)
 
-        dense_hits: list[tuple[str, float]] = []
-        sparse_hits = []
-        graph_result = (
-            self._graph.search(
-                query_entities,
-                effective_graph_query_mode,
-                self._settings.graph_candidate_count,
-                query_text=rewritten_query,
-                filters=filters,
-            )
-            if retrieval_mode in {"graph", "hybrid"}
-            else self._graph.search({}, "classic", 0)
+        graph_result = self._graph.search(
+            query_entities,
+            effective_graph_query_mode,
+            self._settings.graph_candidate_count,
+            query_text=rewritten_query,
+            filters=filters,
         )
-
-        if retrieval_mode in {"dense", "hybrid"}:
-            dense_vector = self._embeddings.embed_query(rewritten_query)
-            dense_hits = self._qdrant.search(dense_vector, self._settings.dense_candidate_count, filters)
-
-        if retrieval_mode in {"bm25", "hybrid"}:
-            sparse_hits = self._artifacts.bm25.search(rewritten_query, self._settings.sparse_candidate_count, filters)
+        dense_vector = self._embeddings.embed_query(rewritten_query)
+        dense_hits = self._qdrant.search(dense_vector, self._settings.dense_candidate_count, filters)
+        sparse_hits = self._artifacts.bm25.search(rewritten_query, self._settings.sparse_candidate_count, filters)
 
         retrieved: dict[str, RetrievedChunk] = {}
         for rank, (chunk_id, score) in enumerate(dense_hits, start=1):
@@ -102,11 +87,10 @@ class HybridSearchService:
             item.fused_score += _graph_rank_score(rank, effective_graph_query_mode)
             item.fused_score += hit.score * self._settings.graph_fusion_weight
 
-        if retrieval_mode == "hybrid":
-            for item in retrieved.values():
-                item.fused_score += _entity_overlap_boost(item.chunk.metadata, query_entities)
-                if pkcs11_reference_mode:
-                    item.fused_score += _pkcs11_reference_boost(item.chunk, query_entities, rewritten_query)
+        for item in retrieved.values():
+            item.fused_score += _entity_overlap_boost(item.chunk.metadata, query_entities)
+            if pkcs11_reference_mode:
+                item.fused_score += _pkcs11_reference_boost(item.chunk, query_entities, rewritten_query)
 
         candidates = sorted(retrieved.values(), key=lambda item: item.fused_score, reverse=True)
         candidates = [
@@ -124,7 +108,7 @@ class HybridSearchService:
         return SearchResult(
             chunks=ranked_chunks[: self._settings.final_context_count],
             ranked_chunks=ranked_chunks,
-            retrieval_mode=retrieval_mode,
+            retrieval_mode="hybrid",
             graph_facts=graph_result.facts,
         )
 
@@ -135,17 +119,10 @@ class HybridSearchService:
         return SearchArtifacts(chunks_by_id=chunks_by_id, bm25=bm25)
 
 
-def normalize_retrieval_mode(value: str | None) -> str:
-    normalized = (value or "hybrid").strip().lower()
-    if normalized in RETRIEVAL_MODE_VALUES:
-        return normalized
-    return "hybrid"
-
-
-def _effective_graph_query_mode(query_mode: str, retrieval_mode: str) -> str:
-    if retrieval_mode == "graph":
-        return "graph_first"
-    return query_mode
+def _effective_graph_query_mode(query_mode: str) -> str:
+    if query_mode in {"mixed", "graph_first"}:
+        return query_mode
+    return "mixed"
 
 
 def _entity_overlap_boost(metadata: dict, query_entities: dict[str, list[str]]) -> float:
