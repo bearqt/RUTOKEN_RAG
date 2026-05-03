@@ -17,5 +17,11 @@ htmlcov
 *.log
 data
 benchmark
+docs
+LightRAG
+research_corpus_25
+scrape_result
 scrape_result_100
+scrape_result_25
 rutoken_rag.egg-info
+.tmp_*

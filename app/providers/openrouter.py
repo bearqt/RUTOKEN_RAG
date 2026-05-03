@@ -18,7 +18,7 @@ class OpenRouterProvider:
             OpenRouter(
                 api_key=settings.openrouter_api_key,
                 http_referer=settings.openrouter_site_url,
-                x_title=settings.openrouter_app_name,
+                x_open_router_title=settings.openrouter_app_name,
                 server_url=settings.openrouter_base_url,
                 timeout_ms=60_000,
             )

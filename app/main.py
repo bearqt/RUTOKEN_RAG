@@ -32,6 +32,7 @@ from app.services.search import HybridSearchService
 
 BENCHMARK_PAGE = Path(__file__).resolve().parent / "web" / "benchmark.html"
 RAG_PIPELINE_PAGE = Path(__file__).resolve().parent / "web" / "rag_pipeline.html"
+CHAT_PAGE = Path(__file__).resolve().parent / "web" / "chat.html"
 
 
 @asynccontextmanager
@@ -55,6 +56,22 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Rutoken RAG", version="0.1.0", lifespan=lifespan)
+
+
+def _read_html_page(path: Path, missing_detail: str) -> HTMLResponse:
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=missing_detail)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def index_page() -> HTMLResponse:
+    return _read_html_page(CHAT_PAGE, "Chat page is missing")
+
+
+@app.get("/chat", response_class=HTMLResponse, include_in_schema=False)
+def chat_page() -> HTMLResponse:
+    return _read_html_page(CHAT_PAGE, "Chat page is missing")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -127,16 +144,12 @@ def query(request: QueryRequest) -> QueryResponse:
 
 @app.get("/benchmark", response_class=HTMLResponse, include_in_schema=False)
 def benchmark_page() -> HTMLResponse:
-    if not BENCHMARK_PAGE.exists():
-        raise HTTPException(status_code=404, detail="Benchmark page is missing")
-    return HTMLResponse(BENCHMARK_PAGE.read_text(encoding="utf-8"))
+    return _read_html_page(BENCHMARK_PAGE, "Benchmark page is missing")
 
 
 @app.get("/rag-pipeline", response_class=HTMLResponse, include_in_schema=False)
 def rag_pipeline_page() -> HTMLResponse:
-    if not RAG_PIPELINE_PAGE.exists():
-        raise HTTPException(status_code=404, detail="RAG pipeline page is missing")
-    return HTMLResponse(RAG_PIPELINE_PAGE.read_text(encoding="utf-8"))
+    return _read_html_page(RAG_PIPELINE_PAGE, "RAG pipeline page is missing")
 
 
 @app.get("/benchmark/sets", response_model=list[BenchmarkQuestionSetSummaryResponse])

@@ -43,9 +43,7 @@ class HybridSearchService:
             return SearchResult(chunks=[], ranked_chunks=[], retrieval_mode="hybrid", graph_facts=[])
 
         query_entities = query_entities or extract_named_entities(rewritten_query)
-        pkcs11_reference_mode = _is_pkcs11_reference_query(rewritten_query, query_entities)
         effective_graph_query_mode = _effective_graph_query_mode(query_mode)
-
         graph_result = self._graph.search(
             query_entities,
             effective_graph_query_mode,
@@ -64,7 +62,7 @@ class HybridSearchService:
                 continue
             retrieved.setdefault(chunk_id, RetrievedChunk(chunk=chunk))
             retrieved[chunk_id].dense_score = score
-            retrieved[chunk_id].fused_score += _dense_rank_score(rank, pkcs11_reference_mode, query_mode)
+            retrieved[chunk_id].fused_score += score
 
         for rank, hit in enumerate(sparse_hits, start=1):
             chunk = self._artifacts.chunks_by_id.get(hit.chunk_id)
@@ -72,7 +70,7 @@ class HybridSearchService:
                 continue
             retrieved.setdefault(hit.chunk_id, RetrievedChunk(chunk=chunk))
             retrieved[hit.chunk_id].sparse_score = hit.score
-            retrieved[hit.chunk_id].fused_score += _sparse_rank_score(rank, pkcs11_reference_mode, query_mode)
+            retrieved[hit.chunk_id].fused_score += hit.score
 
         for rank, hit in enumerate(graph_result.hits, start=1):
             chunk = self._artifacts.chunks_by_id.get(hit.chunk_id)
@@ -84,13 +82,7 @@ class HybridSearchService:
             item.graph_entity_score = hit.entity_score
             item.graph_relation_score = hit.relation_score
             item.graph_feature_score = hit.feature_score
-            item.fused_score += _graph_rank_score(rank, effective_graph_query_mode)
-            item.fused_score += hit.score * self._settings.graph_fusion_weight
-
-        for item in retrieved.values():
-            item.fused_score += _entity_overlap_boost(item.chunk.metadata, query_entities)
-            if pkcs11_reference_mode:
-                item.fused_score += _pkcs11_reference_boost(item.chunk, query_entities, rewritten_query)
+            item.fused_score += hit.score
 
         candidates = sorted(retrieved.values(), key=lambda item: item.fused_score, reverse=True)
         candidates = [
